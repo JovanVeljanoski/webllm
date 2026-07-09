@@ -1,0 +1,2173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gemma 4 Chat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="gemma-4-e2b.js"></script>
+<style>
+  :root {
+    --bg: #f7f8fc;
+    --bg-chat: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f0f2f8;
+    --border: #e4e8f0;
+    --border-soft: #eef1f7;
+    --text: #111827;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --accent-soft: rgba(99, 102, 241, 0.1);
+    --accent-glow: rgba(99, 102, 241, 0.25);
+    --user-bg: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    --think-bg: #f8f9fd;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+    --sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    --sidebar-w: 320px;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --radius-xs: 8px;
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+    --shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.1);
+    --focus-ring: 2px solid var(--accent);
+    --focus-offset: 2px;
+  }
+
+  [data-theme="dark"] {
+    --bg: #090b10;
+    --bg-chat: #0e1017;
+    --surface: #12151f;
+    --surface-2: #1a1e2a;
+    --border: #252a38;
+    --border-soft: #1e2330;
+    --text: #f3f4f6;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --accent: #818cf8;
+    --accent-hover: #a5b4fc;
+    --accent-soft: rgba(129, 140, 248, 0.12);
+    --accent-glow: rgba(129, 140, 248, 0.2);
+    --user-bg: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+    --think-bg: #0c0f16;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .icon { display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .icon svg { width: 1em; height: 1em; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+  #app { display: flex; height: 100vh; overflow: hidden; }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: var(--sidebar-w); flex: none; background: var(--surface);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; z-index: 20;
+  }
+  .sidebar-brand { padding: 20px 18px 16px; display: flex; align-items: center; gap: 12px; }
+  .brand-icon {
+    width: 38px; height: 38px; border-radius: 12px; background: var(--user-bg);
+    display: grid; place-items: center; color: #fff; box-shadow: 0 8px 20px var(--accent-glow);
+  }
+  .brand-icon .icon svg { width: 18px; height: 18px; stroke: #fff; }
+  .brand-text h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.02em; }
+  .brand-text p { margin: 2px 0 0; font-size: 11px; color: var(--text-muted); font-weight: 500; }
+
+  .sidebar-actions { padding: 0 14px 12px; }
+  .btn-new {
+    width: 100%; appearance: none; border: none; cursor: pointer;
+    background: var(--accent); color: #fff; font-family: inherit;
+    font-size: 13px; font-weight: 600; padding: 10px 14px; border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+    box-shadow: 0 4px 14px var(--accent-glow);
+  }
+  .btn-new:hover { background: var(--accent-hover); transform: translateY(-1px); }
+  .btn-new:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+
+  .sidebar-section-label {
+    padding: 8px 18px 6px; font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-muted);
+  }
+  #session-search-wrap { padding: 0 10px 8px; display: none; }
+  #session-search-wrap.show { display: block; }
+  #session-search {
+    width: 100%; border: 1px solid var(--border); border-radius: var(--radius-xs);
+    padding: 8px 10px 8px 32px; font-size: 12px; font-family: inherit;
+    background: var(--bg-chat); color: var(--text);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: 10px center;
+  }
+  #session-list { flex: none; max-height: 240px; overflow-y: auto; padding: 0 10px 8px; }
+  .session-group-label {
+    padding: 10px 8px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.07em; color: var(--text-muted);
+  }
+  .session-item {
+    padding: 10px 12px; border-radius: var(--radius-xs); cursor: pointer;
+    margin-bottom: 2px; transition: background 0.12s; border: 1px solid transparent;
+  }
+  .session-item:hover { background: var(--surface-2); }
+  .session-item.active { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 25%, transparent); }
+  .session-item:focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
+  .session-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .session-title { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .session-title-input {
+    flex: 1; min-width: 0; font-size: 13px; font-weight: 600; font-family: inherit;
+    border: 1px solid var(--accent); border-radius: 6px; padding: 2px 6px; background: var(--bg-chat); color: var(--text);
+  }
+  .session-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; padding-left: 2px; }
+  .session-actions { display: flex; align-items: center; gap: 2px; opacity: 0; transition: opacity 0.12s; }
+  .session-item:hover .session-actions, .session-item.confirming .session-actions { opacity: 1; }
+  .confirm-label { font-size: 11px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+  .icon-btn {
+    appearance: none; border: none; background: transparent; color: var(--text-muted);
+    cursor: pointer; padding: 4px; border-radius: 6px; display: grid; place-items: center;
+  }
+  .icon-btn .icon svg { width: 14px; height: 14px; }
+  .icon-btn:hover { background: var(--surface-2); color: var(--text); }
+  .icon-btn.danger:hover { color: var(--danger); background: rgba(239,68,68,0.1); }
+  .icon-btn:focus-visible { outline: var(--focus-ring); outline-offset: 1px; }
+
+  .sidebar-scroll { flex: 1; min-height: 0; overflow-y: auto; border-top: 1px solid var(--border-soft); padding: 8px 0 12px; }
+  .side-block { margin: 0 10px 6px; }
+  .side-block > summary {
+    list-style: none; cursor: pointer; padding: 10px 12px; border-radius: var(--radius-xs);
+    font-size: 12px; font-weight: 700; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 8px; user-select: none; transition: background 0.12s;
+  }
+  .side-block > summary::-webkit-details-marker { display: none; }
+  .side-block > summary:hover { background: var(--surface-2); }
+  .side-block > summary:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+  .side-block > summary::before {
+    content: ""; width: 0; height: 0; border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+    border-left: 5px solid var(--text-muted); transition: transform 0.15s;
+  }
+  .side-block[open] > summary::before { transform: rotate(90deg); }
+  .side-block-body { padding: 4px 12px 12px; }
+
+  textarea, input[type="text"], input[type="number"], input[type="search"] {
+    width: 100%; border: 1px solid var(--border); border-radius: var(--radius-xs);
+    padding: 10px 12px; font-size: 13px; font-family: inherit;
+    background: var(--bg-chat); color: var(--text); resize: vertical; line-height: 1.5;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  textarea:focus:not(#user-input), input:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  #system-prompt { min-height: 88px; max-height: 160px; font-family: var(--mono); font-size: 12px; }
+
+  .field-label { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .field-group { margin-bottom: 12px; }
+  .field-group:last-child { margin-bottom: 0; }
+  .seg-control { display: flex; gap: 4px; padding: 3px; background: var(--surface-2); border-radius: var(--radius-xs); }
+  .seg-btn {
+    flex: 1; border: none; background: transparent; cursor: pointer; font-family: inherit;
+    font-size: 11px; font-weight: 600; color: var(--text-muted); padding: 6px 8px; border-radius: 6px; transition: all 0.12s;
+  }
+  .seg-btn.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+  .seg-btn:focus-visible { outline: var(--focus-ring); outline-offset: 1px; }
+  .grammar-extra { display: none; margin-top: 8px; }
+  .grammar-extra.show { display: block; }
+  .grammar-extra textarea { min-height: 72px; font-family: var(--mono); font-size: 11px; }
+  .hint-box { font-size: 11px; color: var(--text-muted); line-height: 1.5; padding: 8px 10px; border-radius: var(--radius-xs); background: var(--surface-2); margin-top: 8px; }
+  .field-hint { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin: 0 0 10px; }
+  .storage-actions { display: flex; flex-direction: column; gap: 6px; }
+  .storage-actions .btn { width: 100%; text-align: center; font-size: 12px; padding: 8px 10px; }
+  .storage-actions .btn:disabled { opacity: 0.5; }
+  .empty-cache-hint { margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); max-width: 400px; }
+  #credits-body { font-size: 12px; color: var(--text-muted); line-height: 1.55; min-height: 20px; }
+  #credits-body a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  #credits-body a:hover { text-decoration: underline; }
+
+  .sidebar-footer { flex: none; padding: 12px 14px; border-top: 1px solid var(--border); }
+  .theme-btn {
+    width: 100%; appearance: none; border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--text-secondary); font-family: inherit; font-size: 12px; font-weight: 600;
+    padding: 8px 12px; border-radius: var(--radius-xs); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.12s;
+  }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .theme-btn:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+
+  /* ── Main ── */
+  #main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-chat); min-height: 0; }
+  .topbar {
+    flex: none; height: 60px; display: flex; align-items: center; gap: 12px;
+    padding: 0 24px; border-bottom: 1px solid var(--border-soft);
+    background: color-mix(in srgb, var(--bg-chat) 85%, transparent); backdrop-filter: blur(12px);
+  }
+  .menu-btn {
+    display: none; appearance: none; border: 1px solid var(--border); background: var(--surface);
+    border-radius: var(--radius-xs); width: 36px; height: 36px; cursor: pointer; color: var(--text);
+  }
+  .menu-btn:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+  .chat-title-wrap { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
+  .chat-title { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-title-edit {
+    opacity: 0; appearance: none; border: none; background: transparent; color: var(--text-muted);
+    cursor: pointer; padding: 4px; border-radius: 6px; transition: opacity 0.12s, color 0.12s;
+  }
+  .chat-title-wrap:hover .chat-title-edit { opacity: 1; }
+  .chat-title-edit:hover { color: var(--accent); background: var(--accent-soft); }
+  .chat-title-edit:focus-visible { opacity: 1; outline: var(--focus-ring); outline-offset: 1px; }
+  .chat-title-input {
+    width: 100%; font-size: 15px; font-weight: 700; font-family: inherit;
+    border: 1px solid var(--accent); border-radius: 8px; padding: 4px 10px; background: var(--surface); color: var(--text);
+  }
+  .topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+  .status-chip {
+    display: inline-flex; align-items: center; gap: 7px; max-width: 260px;
+    font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    padding: 6px 12px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border);
+  }
+  #model-status-text {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px;
+  }
+  .status-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); flex: none; }
+  .status-chip.ready .dot { background: var(--success); box-shadow: 0 0 8px rgba(16,185,129,0.5); }
+  .status-chip.loading .dot { background: var(--warning); animation: pulse 1.2s ease-in-out infinite; }
+  .status-chip.busy .dot { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+  .status-chip.error .dot { background: var(--danger); }
+
+  .btn {
+    appearance: none; border: 1px solid var(--border); background: var(--surface);
+    border-radius: var(--radius-xs); padding: 8px 14px; font-family: inherit; font-size: 13px; font-weight: 600;
+    color: var(--text); cursor: pointer; transition: all 0.12s; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+  .btn:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+  .btn-lg { padding: 12px 28px; font-size: 14px; border-radius: 14px; }
+
+  #banner-top-mount { flex: none; }
+  #webgpu-banner {
+    display: none; padding: 10px 24px; font-size: 13px; line-height: 1.5; border-bottom: 1px solid transparent;
+  }
+  #webgpu-banner.show { display: block; }
+  #webgpu-banner.inline { padding: 10px 14px; border-radius: var(--radius-xs); border: 1px solid transparent; margin-top: 12px; font-size: 12px; }
+  #webgpu-banner[data-level="error"] { background: rgba(239,68,68,0.1); color: var(--danger); border-color: rgba(239,68,68,0.2); }
+  #webgpu-banner[data-level="warn"] { background: rgba(245,158,11,0.12); color: var(--warning); border-color: rgba(245,158,11,0.25); }
+  #webgpu-banner[data-level="ok"] { background: rgba(16,185,129,0.1); color: var(--success); border-color: rgba(16,185,129,0.2); }
+
+  #load-bar-wrap { display: none; height: 2px; background: var(--surface-2); flex: none; }
+  #load-bar-wrap.show { display: block; }
+  #load-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #a78bfa); transition: width 0.15s linear; }
+
+  #chat-scroll { flex: 1; min-height: 0; overflow-y: auto; scroll-behavior: smooth; background: var(--bg); }
+
+  /* ── Messages — unified outlined cards ── */
+  #chat-messages {
+    display: flex; flex-direction: column; gap: 22px;
+    padding: 32px 0 40px;
+  }
+  .msg { width: 100%; animation: fadeUp 0.28s ease; }
+
+  .msg-inner {
+    max-width: 780px; margin: 0 auto; padding: 0 28px;
+    display: grid; grid-template-columns: 42px 1fr; gap: 14px 16px; align-items: start;
+  }
+
+  .avatar {
+    width: 42px; height: 42px; border-radius: 13px;
+    border: 1.5px solid var(--border); background: var(--surface);
+    display: grid; place-items: center;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    color: var(--text-secondary);
+    transition: border-color 0.18s, box-shadow 0.18s;
+  }
+  .avatar .icon svg { width: 19px; height: 19px; }
+  .avatar.user {
+    background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
+    color: var(--text-secondary);
+  }
+  .avatar.assistant {
+    border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+    background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface));
+    color: var(--accent);
+  }
+  .msg:hover .avatar.user {
+    border-color: color-mix(in srgb, var(--text-secondary) 25%, var(--border));
+  }
+  .msg:hover .avatar.assistant {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+    box-shadow: 0 2px 8px var(--accent-soft);
+  }
+
+  .msg-body { min-width: 0; }
+
+  .msg-card {
+    border: 1.5px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+    padding: 17px 20px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .msg:hover .msg-card {
+    border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+    box-shadow: 0 6px 22px rgba(15, 23, 42, 0.06);
+  }
+
+  .msg-role {
+    font-size: 11px; font-weight: 700; color: var(--text-muted);
+    margin-bottom: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  }
+
+  .msg-content, .response-content {
+    font-size: 15.5px; line-height: 1.72; color: var(--text);
+    white-space: pre-wrap; word-break: break-word;
+  }
+
+  .think-disclosure {
+    margin-bottom: 14px; border: 1px solid var(--border-soft); border-radius: 10px;
+    background: var(--think-bg); overflow: hidden;
+  }
+  .think-disclosure summary {
+    list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--text-secondary); user-select: none;
+  }
+  .think-disclosure summary::-webkit-details-marker { display: none; }
+  .think-disclosure summary:focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
+  .think-disclosure summary .chevron { margin-left: auto; transition: transform 0.15s; }
+  .think-disclosure[open] summary .chevron { transform: rotate(180deg); }
+  .think-disclosure .think-content {
+    padding: 0 14px 14px; font-family: var(--mono); font-size: 13px; line-height: 1.65;
+    color: var(--text-secondary); white-space: pre-wrap; max-height: 300px; overflow-y: auto;
+  }
+
+  .msg-footer {
+    display: flex; align-items: center; gap: 14px; margin-top: 14px; padding-top: 12px;
+    border-top: 1px solid var(--border-soft);
+    font-family: var(--mono); font-size: 12px; color: var(--text-muted);
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .msg:hover .msg-footer { opacity: 1; }
+  .msg.streaming .msg-footer { opacity: 1; }
+  @media (hover: none) { .msg-footer { opacity: 1; } }
+  .response-stream-meta {
+    font-family: var(--mono); font-size: 12px; color: var(--text-muted);
+    margin-top: 10px; letter-spacing: -0.01em;
+  }
+  .think-disclosure summary .think-label { flex: 1; min-width: 0; }
+  .footer-action {
+    appearance: none; cursor: pointer;
+    border: 1.5px solid var(--border); border-radius: 8px; background: transparent;
+    color: var(--text-muted); font-family: inherit; font-size: 12px; font-weight: 600;
+    padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .footer-action:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .footer-action:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+
+  #chat-inner {
+    max-width: none; margin: 0; padding: 0;
+    display: flex; flex-direction: column; min-height: 100%;
+  }
+
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 60px 24px; color: var(--text-muted);
+  }
+  .empty-icon {
+    width: 64px; height: 64px; border-radius: 20px;
+    border: 1.5px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+    background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface));
+    color: var(--accent);
+    display: grid; place-items: center; margin-bottom: 20px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+  }
+  .empty-icon .icon svg { width: 28px; height: 28px; stroke: var(--accent); }
+  .empty-state h2 { margin: 0 0 8px; font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+  .empty-state p { margin: 0; max-width: 400px; font-size: 16px; line-height: 1.7; }
+  .empty-state-loader { margin-top: 24px; width: 100%; max-width: 360px; }
+  #empty-loader-idle { display: flex; justify-content: center; }
+  #empty-loader-progress { text-align: left; }
+  .loader-status { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; font-family: var(--mono); }
+  .loader-bar-track { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+  .loader-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #a78bfa); transition: width 0.15s linear; }
+
+  .thinking-dots { display: inline-flex; gap: 5px; padding: 4px 0; }
+  .thinking-dots span {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: 0.4;
+    animation: bob 1.3s ease-in-out infinite;
+  }
+  .thinking-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.3s; }
+  .stream-cursor {
+    display: inline-block; width: 2px; height: 1em; background: var(--accent);
+    margin-left: 2px; vertical-align: -2px; animation: blink 0.9s steps(2) infinite;
+  }
+
+  /* ── Composer ── */
+  #composer-area { flex: none; padding: 16px 24px 24px; background: linear-gradient(to top, var(--bg-chat) 70%, transparent); }
+  #composer-shell {
+    max-width: 780px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 6px 6px 6px 20px; display: flex; align-items: flex-end; gap: 8px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04); transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  #composer-shell:focus-within {
+    border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+  #user-input {
+    flex: 1; border: none; background: transparent; font-family: inherit; font-size: 16px;
+    line-height: 1.55; padding: 12px 0; min-height: 28px; max-height: 180px; resize: none; color: var(--text);
+    box-shadow: none;
+  }
+  #user-input:focus { outline: none; box-shadow: none; border: none; }
+  #user-input::placeholder { color: var(--text-muted); }
+  .send-btn {
+    appearance: none; cursor: pointer; width: 40px; height: 40px; border-radius: 12px;
+    background: transparent; border: 1.5px solid var(--border); color: var(--text-secondary);
+    display: grid; place-items: center;
+    transition: border-color 0.15s, color 0.15s, background 0.15s, transform 0.12s; flex: none;
+  }
+  .send-btn .icon svg { width: 18px; height: 18px; stroke: currentColor; }
+  .send-btn:hover:not(:disabled) {
+    border-color: var(--accent); color: var(--accent); background: var(--accent-soft); transform: scale(1.03);
+  }
+  .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .send-btn:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+  .stop-btn {
+    appearance: none; border: none; cursor: pointer; height: 40px; padding: 0 16px; border-radius: 14px;
+    background: rgba(239,68,68,0.12); color: var(--danger); font-family: inherit; font-size: 13px; font-weight: 600; flex: none;
+  }
+  .stop-btn:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+
+  /* ── Toasts ── */
+  #toast-stack {
+    position: fixed; bottom: 20px; right: 20px; z-index: 100;
+    display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+  }
+  .toast {
+    pointer-events: auto; background: var(--surface); border: 1px solid var(--border);
+    box-shadow: var(--shadow-lg); border-radius: var(--radius-xs);
+    padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 10px; animation: toastIn 0.2s ease;
+  }
+  .toast .toast-action { color: var(--accent); cursor: pointer; font-weight: 700; }
+  .toast .toast-action:focus-visible { outline: var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+  @keyframes bob { 0%,60%,100% { opacity: 0.4; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-4px); } }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  @media (max-width: 768px) {
+    #sidebar { position: fixed; inset: 0 auto 0 0; transform: translateX(-100%); transition: transform 0.25s ease; box-shadow: var(--shadow-lg); }
+    #sidebar.open { transform: translateX(0); }
+    .menu-btn { display: grid; place-items: center; }
+    #chat-inner .msg-inner { padding: 0 16px; }
+    #composer-shell { padding-left: 16px; padding-right: 16px; }
+    .topbar { padding: 0 16px; }
+    #toast-stack { left: 16px; right: 16px; bottom: 16px; align-items: center; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon" id="brand-icon"></div>
+      <div class="brand-text">
+        <h1>Gemma 4 Chat</h1>
+        <p>Local · Private · WebGPU</p>
+      </div>
+    </div>
+    <div class="sidebar-actions">
+      <button type="button" class="btn-new" id="new-chat-btn"></button>
+    </div>
+    <div id="session-search-wrap">
+      <input type="search" id="session-search" placeholder="Search conversations…" aria-label="Search conversations">
+    </div>
+    <div id="session-list"></div>
+    <div class="sidebar-scroll">
+      <details class="side-block" id="system-block" open>
+        <summary>System prompt</summary>
+        <div class="side-block-body">
+          <textarea id="system-prompt" placeholder="You are a helpful assistant…"></textarea>
+        </div>
+      </details>
+      <details class="side-block" id="settings-block">
+        <summary>Advanced</summary>
+        <div class="side-block-body">
+          <div class="field-group">
+            <span class="field-label">Grammar mode</span>
+            <div class="seg-control" id="grammar-modes">
+              <button type="button" class="seg-btn active" data-mode="off">Off</button>
+              <button type="button" class="seg-btn" data-mode="json">JSON</button>
+              <button type="button" class="seg-btn" data-mode="ebnf">EBNF</button>
+            </div>
+            <div class="grammar-extra" id="grammar-json-wrap">
+              <textarea id="grammar-json-schema" placeholder="Optional JSON Schema…"></textarea>
+            </div>
+            <div class="grammar-extra" id="grammar-ebnf-wrap">
+              <textarea id="grammar-custom" placeholder="root ::= value&#10;value ::= string | number"></textarea>
+            </div>
+            <div class="hint-box">Grammar is applied via system-prompt guidance. Hard token masking is not yet available in this runtime.</div>
+          </div>
+          <div class="field-group">
+            <span class="field-label">Max new tokens</span>
+            <input type="number" id="max-tokens" min="64" max="8192" step="64" value="4096">
+          </div>
+          <div class="hint-box" id="file-origin-note" hidden>
+            Weight cache disabled on <code>file://</code>.
+          </div>
+        </div>
+      </details>
+      <details class="side-block" id="storage-block" open>
+        <summary>Model storage</summary>
+        <div class="side-block-body">
+          <div class="field-group" id="storage-group">
+            <p class="field-hint" id="storage-status-text">Checking…</p>
+            <div class="storage-actions" id="storage-actions">
+              <button type="button" class="btn" id="clear-model-cache-btn">Clear all model cache</button>
+            </div>
+          </div>
+        </div>
+      </details>
+      <details class="side-block" id="credits-block">
+        <summary>Credits</summary>
+        <div class="side-block-body">
+          <div id="credits-body">
+            Credit goes to the creator of Transformers.js, Joshua Lochner, who developed the technology that makes this demo possible.
+            Follow him on
+            <a href="https://github.com/Xenova" target="_blank" rel="noopener noreferrer">GitHub</a>
+            and
+            <a href="https://x.com/xenovacom" target="_blank" rel="noopener noreferrer">X</a>.
+          </div>
+        </div>
+      </details>
+    </div>
+    <div class="sidebar-footer">
+      <button type="button" class="theme-btn" id="theme-toggle"><span id="theme-icon"></span> Theme</button>
+    </div>
+  </aside>
+
+  <div id="main">
+    <div class="topbar">
+      <button type="button" class="menu-btn" id="sidebar-toggle" aria-label="Menu"></button>
+      <div class="chat-title-wrap">
+        <h2 class="chat-title" id="chat-title">New chat</h2>
+        <button type="button" class="chat-title-edit" id="chat-title-edit" aria-label="Rename conversation" title="Rename"></button>
+      </div>
+      <div class="topbar-actions">
+        <div class="status-chip" id="model-status" title="">
+          <span class="dot"></span>
+          <span id="model-status-text">Not loaded</span>
+        </div>
+        <button type="button" class="btn" id="load-model-btn">Load model</button>
+      </div>
+    </div>
+
+    <div id="banner-top-mount"></div>
+    <div id="load-bar-wrap"><div id="load-bar"></div></div>
+
+    <div id="chat-scroll">
+      <div id="chat-inner">
+        <div class="empty-state" id="empty-state">
+          <div class="empty-icon" id="empty-icon"></div>
+          <h2>Your private AI chat</h2>
+          <p>All inference runs locally in your browser — your conversations never leave this device.</p>
+          <p class="empty-cache-hint" id="empty-cache-hint"></p>
+          <div class="empty-state-loader" id="empty-loader">
+            <div id="empty-banner-mount"></div>
+            <div id="empty-loader-idle">
+              <button type="button" class="btn primary btn-lg" id="load-model-btn-hero">Load model</button>
+            </div>
+            <div id="empty-loader-progress" hidden>
+              <div class="loader-status" id="loader-status">Preparing…</div>
+              <div class="loader-bar-track"><div class="loader-bar-fill" id="loader-bar-fill"></div></div>
+            </div>
+          </div>
+        </div>
+        <div id="chat-messages"></div>
+      </div>
+    </div>
+
+    <div id="composer-area">
+      <div id="composer-shell">
+        <textarea id="user-input" rows="1" placeholder="Message Gemma 4…" disabled></textarea>
+        <button type="button" class="send-btn" id="send-btn" disabled title="Send"></button>
+        <button type="button" class="stop-btn" id="stop-btn" style="display:none">Stop</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="webgpu-banner"></div>
+<div id="toast-stack" aria-live="polite"></div>
+
+<script>
+"use strict";
+
+const DB_NAME = "gemma4-chat";
+const DB_VERSION = 1;
+const STORE = "sessions";
+const PREFS_KEY = "gemma4-chat:prefs";
+const THEME_KEY = "gemma4-chat:theme";
+
+const MODEL_ID = "google/gemma-4-E2B-it-qat-mobile-transformers";
+const MODEL_REVISION = "65707b8733090dda89f84735f1a1452e7b025f86";
+const MODEL_CACHE_NAME = "gemma4-chat-model-v1";
+const MODEL_META_URL = `https://huggingface.co/${MODEL_ID}/resolve/${MODEL_REVISION}/model.safetensors`;
+
+const ICONS = {
+  user: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M6 20v-1a6 6 0 0 1 12 0v1"/></svg>',
+  spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z"/><path d="M5 3v4M3 5h4M19 17v4M17 19h4"/></svg>',
+  menu: '<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
+  close: '<svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  send: '<svg viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>',
+  stop: '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>',
+  sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+  moon: '<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
+  chevron: '<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
+  copy: '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  download: '<svg viewBox="0 0 24 24"><path d="M12 3v10"/><path d="m8 11 4 4 4-4"/><path d="M5 21h14"/></svg>',
+  brain: '<svg viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3v1a2 2 0 0 0-2 2 2 2 0 0 0 0 4 2 2 0 0 0 2 2v1a3 3 0 0 0 3 3"/><path d="M15 4a3 3 0 0 1 3 3v1a2 2 0 0 1 2 2 2 2 0 0 1 0 4 2 2 0 0 1-2 2v1a3 3 0 0 1-3 3"/><path d="M9 7h6M9 17h6"/></svg>',
+};
+
+function icon(name) {
+  const span = document.createElement("span");
+  span.className = "icon";
+  span.innerHTML = ICONS[name] || "";
+  return span;
+}
+
+function setIcon(el, name) {
+  el.replaceChildren(icon(name));
+}
+
+const state = {
+  model: null,
+  loading: false,
+  busy: false,
+  abort: null,
+  webgpuOk: false,
+  webgpuBrowser: "other",
+  webgpuChecking: true,
+  // file:// is an opaque origin — IndexedDB unavailable — cache disabled intentionally.
+  // Production is static GitHub Pages (https://) — no server. Local dev: python3 -m http.server 8080
+  fileOrigin: typeof location !== "undefined" && location.protocol === "file:",
+  progress: { target: 0, shown: 0, raf: 0, label: "" },
+  sessions: [],
+  activeSessionId: null,
+  grammarMode: "off",
+  maxNewTokens: 4096,
+  db: null,
+  renamingSessionId: null,
+  sessionSearch: "",
+  okBannerTimer: null,
+  modelCached: false,
+  webgpuLabel: "",
+  modelLoadSecs: null,
+};
+
+const $ = id => document.getElementById(id);
+
+/* ── Toast ── */
+
+function toast(message, { duration = 3000 } = {}) {
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.innerHTML = `<span>${esc(message)}</span>`;
+  $("toast-stack").appendChild(el);
+  setTimeout(() => el.remove(), duration);
+}
+
+/* ── IndexedDB ── */
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE)) {
+        db.createObjectStore(STORE, { keyPath: "id" }).createIndex("updatedAt", "updatedAt");
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbGetAll() {
+  return new Promise((resolve, reject) => {
+    const tx = state.db.transaction(STORE, "readonly");
+    const req = tx.objectStore(STORE).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbPut(session) {
+  return new Promise((resolve, reject) => {
+    const tx = state.db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).put(session);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function dbDelete(id) {
+  return new Promise((resolve, reject) => {
+    const tx = state.db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function uid() {
+  return crypto.randomUUID?.() || `s-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function activeSession() {
+  return state.sessions.find(s => s.id === state.activeSessionId) || null;
+}
+
+function isEmptyStateVisible() {
+  const session = activeSession();
+  return $("empty-state").style.display !== "none" && !session?.messages?.length;
+}
+
+async function persistSession(session) {
+  session.updatedAt = Date.now();
+  await dbPut(session);
+  const idx = state.sessions.findIndex(s => s.id === session.id);
+  if (idx >= 0) state.sessions[idx] = session;
+  else state.sessions.unshift(session);
+  state.sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+  savePrefs();
+  renderSessionList();
+  updateChatTitle();
+  mountWebGpuBanner();
+  updateEmptyLoader();
+}
+
+async function createSession(title = "New chat") {
+  const session = { id: uid(), title, systemPrompt: "", messages: [], createdAt: Date.now(), updatedAt: Date.now() };
+  await persistSession(session);
+  state.activeSessionId = session.id;
+  savePrefs();
+  return session;
+}
+
+async function deleteSession(id) {
+  await dbDelete(id);
+  state.sessions = state.sessions.filter(s => s.id !== id);
+  if (state.activeSessionId === id) {
+    state.activeSessionId = state.sessions[0]?.id || null;
+    if (!state.activeSessionId) await createSession();
+  }
+  savePrefs();
+  renderSessionList();
+  renderChat();
+  syncUIFromSession();
+  mountWebGpuBanner();
+}
+
+async function renameSession(id, newTitle) {
+  const session = state.sessions.find(s => s.id === id);
+  if (!session) return;
+  session.title = (newTitle || "").trim() || "Untitled";
+  await persistSession(session);
+}
+
+function savePrefs() {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify({
+      activeSessionId: state.activeSessionId,
+      grammarMode: state.grammarMode,
+      maxNewTokens: state.maxNewTokens,
+      grammarJsonSchema: $("grammar-json-schema")?.value || "",
+      grammarEbnf: $("grammar-custom")?.value || "",
+      sessionSearch: state.sessionSearch,
+      sidebarOpen: {
+        system: $("system-block")?.open,
+        settings: $("settings-block")?.open,
+        storage: $("storage-block")?.open,
+        credits: $("credits-block")?.open,
+      },
+    }));
+  } catch { /* ignore */ }
+}
+
+function loadPrefs() {
+  try {
+    const p = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
+    if (p.activeSessionId) state.activeSessionId = p.activeSessionId;
+    if (p.grammarMode) state.grammarMode = p.grammarMode;
+    if (typeof p.maxNewTokens === "number") state.maxNewTokens = p.maxNewTokens;
+    if (p.grammarJsonSchema) $("grammar-json-schema").value = p.grammarJsonSchema;
+    if (p.grammarEbnf) $("grammar-custom").value = p.grammarEbnf;
+    if (p.sessionSearch) { state.sessionSearch = p.sessionSearch; $("session-search").value = p.sessionSearch; }
+    if (p.sidebarOpen) {
+      if (typeof p.sidebarOpen.system === "boolean") $("system-block").open = p.sidebarOpen.system;
+      if (typeof p.sidebarOpen.settings === "boolean") $("settings-block").open = p.sidebarOpen.settings;
+      if (typeof p.sidebarOpen.storage === "boolean") $("storage-block").open = p.sidebarOpen.storage;
+      if (typeof p.sidebarOpen.credits === "boolean") $("credits-block").open = p.sidebarOpen.credits;
+    }
+  } catch { /* ignore */ }
+}
+
+/* ── Theme ── */
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  setIcon($("theme-icon"), theme === "dark" ? "sun" : "moon");
+  try { localStorage.setItem(THEME_KEY, theme); } catch { /* ignore */ }
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
+  applyTheme(saved || (prefersDark ? "dark" : "light"));
+}
+
+/* ── Banner mounting (P0-4) ── */
+
+function mountWebGpuBanner() {
+  const banner = $("webgpu-banner");
+  if (!banner.classList.contains("show")) return;
+  const inline = isEmptyStateVisible();
+  const mount = inline ? $("empty-banner-mount") : $("banner-top-mount");
+  mount.appendChild(banner);
+  banner.classList.toggle("inline", inline);
+}
+
+/* ── WebGPU ── */
+
+function detectBrowser() {
+  const ua = navigator.userAgent || "";
+  if (/Firefox\//i.test(ua)) return "firefox";
+  if (/Edg\//i.test(ua)) return "edge";
+  if (/Chrome\//i.test(ua) || /CriOS/i.test(ua)) return "chrome";
+  if (/Safari\//i.test(ua)) return "safari";
+  return "other";
+}
+
+const BROWSER_LABELS = { chrome: "Chrome", edge: "Edge", safari: "Safari", firefox: "Firefox", other: "this browser" };
+
+function showWebGpuBanner(html, level = "error") {
+  if (state.okBannerTimer) { clearTimeout(state.okBannerTimer); state.okBannerTimer = null; }
+  const banner = $("webgpu-banner");
+  banner.classList.add("show");
+  banner.dataset.level = level;
+  banner.innerHTML = html;
+  mountWebGpuBanner();
+  if (level === "ok") {
+    state.okBannerTimer = setTimeout(hideWebGpuBanner, 5000);
+  }
+}
+
+function hideWebGpuBanner() {
+  if (state.okBannerTimer) { clearTimeout(state.okBannerTimer); state.okBannerTimer = null; }
+  const banner = $("webgpu-banner");
+  banner.classList.remove("show", "inline");
+  delete banner.dataset.level;
+  banner.innerHTML = "";
+}
+
+async function probeWebGPU() {
+  state.webgpuChecking = true;
+  state.webgpuBrowser = detectBrowser();
+  setModelStatus("loading", "Checking WebGPU…");
+  updateComposerState();
+
+  const browserLabel = BROWSER_LABELS[state.webgpuBrowser] || "this browser";
+
+  if (!navigator.gpu) {
+    state.webgpuOk = false;
+    const extra = state.webgpuBrowser === "firefox"
+      ? " Firefox exposes WebGPU only behind <code>dom.webgpu.enabled</code> in <code>about:config</code>."
+      : " Use Chrome 113+, Edge 113+, or Safari 18+.";
+    showWebGpuBanner(`<strong>WebGPU API not found.</strong> ${browserLabel} does not expose WebGPU.${extra}`, "error");
+    state.webgpuChecking = false;
+    setModelStatus("error", "WebGPU unavailable");
+    updateComposerState();
+    return;
+  }
+
+  if (state.webgpuBrowser === "firefox") {
+    state.webgpuOk = false;
+    showWebGpuBanner("<strong>Firefox is not supported.</strong> This Gemma 4 runtime is known to fail in Firefox. Use Chrome, Edge, or Safari 18+.", "warn");
+    state.webgpuChecking = false;
+    setModelStatus("error", "Use Chrome / Safari");
+    updateComposerState();
+    return;
+  }
+
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+      state.webgpuOk = false;
+      showWebGpuBanner(`<strong>No WebGPU adapter found.</strong> ${browserLabel} reported WebGPU but no compatible GPU is available.`, "error");
+      state.webgpuChecking = false;
+      setModelStatus("error", "No GPU adapter");
+      updateComposerState();
+      return;
+    }
+
+    let adapterLabel = "";
+    try {
+      const info = adapter.info;
+      adapterLabel = info?.description || info?.device || "";
+    } catch { /* ignore */ }
+
+    state.webgpuOk = true;
+    hideWebGpuBanner();
+
+    if (state.webgpuBrowser === "safari") {
+      showWebGpuBanner(`<strong>WebGPU ready on Safari.</strong>${adapterLabel ? ` GPU: ${esc(adapterLabel)}.` : ""} Safari 18+ is supported.`, "ok");
+    } else if (state.webgpuBrowser === "other") {
+      showWebGpuBanner(`<strong>WebGPU detected.</strong>${adapterLabel ? ` GPU: ${esc(adapterLabel)}.` : ""} Chrome, Edge, and Safari work best.`, "warn");
+    }
+
+    state.webgpuChecking = false;
+    state.webgpuLabel = adapterLabel ? `WebGPU · ${adapterLabel}` : `WebGPU · ${browserLabel}`;
+    setModelStatus("", state.webgpuLabel);
+  } catch (err) {
+    state.webgpuOk = false;
+    showWebGpuBanner(`<strong>WebGPU check failed.</strong> ${esc(err?.message || err)}`, "error");
+    state.webgpuChecking = false;
+    setModelStatus("error", "WebGPU check failed");
+  }
+  updateComposerState();
+}
+
+/* ── Model loading (P0-4) ── */
+
+const PHASE = { init: [0, 0.02], tokenizer: [0.02, 0.05], weights: [0.05, 1.0], ready: [1, 1] };
+
+function updateProgressUI(pct, label) {
+  const w = (pct * 100).toFixed(1) + "%";
+  $("load-bar").style.width = w;
+  $("loader-bar-fill").style.width = w;
+  if (label) {
+    $("loader-status").textContent = label;
+    state.progress.label = label;
+  }
+}
+
+function setProgressTarget(v) {
+  if (!Number.isFinite(v)) return;
+  state.progress.target = Math.min(1, Math.max(0, Math.max(v, state.progress.target)));
+  if (!state.progress.raf) state.progress.raf = requestAnimationFrame(stepBar);
+}
+
+function stepBar() {
+  const p = state.progress;
+  p.shown += Math.abs(p.target - p.shown) < 0.0015 ? (p.target - p.shown) : (p.target - p.shown) * 0.3;
+  updateProgressUI(p.shown, p.label);
+  p.raf = p.shown < p.target ? requestAnimationFrame(stepBar) : 0;
+}
+
+function setProgressImmediate(v, label) {
+  if (state.progress.raf) { cancelAnimationFrame(state.progress.raf); state.progress.raf = 0; }
+  state.progress.target = state.progress.shown = Math.min(1, Math.max(0, v));
+  updateProgressUI(state.progress.shown, label);
+}
+
+function fmtBytes(b) {
+  const u = ["B", "KB", "MB", "GB"]; let v = b, i = 0;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(i === 3 ? 2 : (v >= 10 || i === 0 ? 0 : 1))} ${u[i]}`;
+}
+
+/* ── Model cache (IndexedDB + Cache Storage via runtime) ── */
+
+async function requestPersistentStorage() {
+  if (!navigator.storage?.persist) return false;
+  try { return await navigator.storage.persist(); } catch { return false; }
+}
+
+async function readModelCacheMeta() {
+  if (!("indexedDB" in window) || state.fileOrigin) return null;
+  try {
+    return await new Promise(resolve => {
+      const req = indexedDB.open(MODEL_CACHE_NAME);
+      req.onupgradeneeded = () => { req.result.close(); resolve(null); };
+      req.onerror = () => resolve(null);
+      req.onsuccess = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains("meta")) { db.close(); resolve(null); return; }
+        const tx = db.transaction("meta", "readonly");
+        const getReq = tx.objectStore("meta").get(MODEL_META_URL);
+        getReq.onsuccess = () => { resolve(getReq.result ?? null); db.close(); };
+        getReq.onerror = () => { resolve(null); db.close(); };
+      };
+    });
+  } catch { return null; }
+}
+
+async function sumIndexedDbChunkBytes() {
+  if (!("indexedDB" in window) || state.fileOrigin) return 0;
+  try {
+    return await new Promise(resolve => {
+      const req = indexedDB.open(MODEL_CACHE_NAME);
+      req.onupgradeneeded = () => { req.result.close(); resolve(0); };
+      req.onerror = () => resolve(0);
+      req.onsuccess = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains("chunks")) { db.close(); resolve(0); return; }
+        const tx = db.transaction("chunks", "readonly");
+        const cursorReq = tx.objectStore("chunks").openCursor();
+        let total = 0;
+        cursorReq.onsuccess = ev => {
+          const cursor = ev.target.result;
+          if (!cursor) { db.close(); resolve(total); return; }
+          const val = cursor.value;
+          if (val instanceof Blob) total += val.size;
+          else if (val?.byteLength) total += val.byteLength;
+          cursor.continue();
+        };
+        cursorReq.onerror = () => { db.close(); resolve(0); };
+      };
+    });
+  } catch { return 0; }
+}
+
+async function sumCacheStorageBytes() {
+  if (!("caches" in window) || state.fileOrigin) return 0;
+  try {
+    const cache = await caches.open(MODEL_CACHE_NAME);
+    const keys = await cache.keys();
+    let total = 0;
+    for (const req of keys) {
+      const res = await cache.match(req);
+      if (res) total += (await res.blob()).size;
+    }
+    return total;
+  } catch { return 0; }
+}
+
+/** Bytes actually stored for the model cache (IDB weight chunks + Cache Storage config). */
+async function getModelCacheSize() {
+  const [meta, chunkBytes, configBytes] = await Promise.all([
+    readModelCacheMeta(),
+    sumIndexedDbChunkBytes(),
+    sumCacheStorageBytes(),
+  ]);
+  const stored = chunkBytes + configBytes;
+  const declared = meta?.size && Number.isFinite(meta.size) ? meta.size : null;
+  return { stored, declared };
+}
+
+async function checkModelCached() {
+  if (!("indexedDB" in window) || state.fileOrigin) return false;
+  try {
+    // Never open with an explicit version — that can create an empty v2 DB on first visit
+    // and prevent the runtime from creating the chunks/meta stores (cache silently breaks).
+    if (indexedDB.databases) {
+      const dbs = await indexedDB.databases();
+      if (!dbs.some(d => d.name === MODEL_CACHE_NAME)) return false;
+    }
+    return await new Promise(resolve => {
+      const req = indexedDB.open(MODEL_CACHE_NAME);
+      req.onupgradeneeded = () => {
+        req.result.close();
+        resolve(false);
+      };
+      req.onerror = () => resolve(false);
+      req.onsuccess = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains("meta")) {
+          db.close();
+          resolve(false);
+          return;
+        }
+        const tx = db.transaction("meta", "readonly");
+        const getReq = tx.objectStore("meta").get(MODEL_META_URL);
+        getReq.onsuccess = () => { resolve(!!getReq.result); db.close(); };
+        getReq.onerror = () => { resolve(false); db.close(); };
+      };
+    });
+  } catch { return false; }
+}
+
+async function repairBrokenModelCache() {
+  if (state.fileOrigin || !("indexedDB" in window)) return;
+  try {
+    if (indexedDB.databases) {
+      const dbs = await indexedDB.databases();
+      if (!dbs.some(d => d.name === MODEL_CACHE_NAME)) return;
+    }
+    const schemaOk = await new Promise(resolve => {
+      const req = indexedDB.open(MODEL_CACHE_NAME);
+      req.onupgradeneeded = () => { req.result.close(); resolve(false); };
+      req.onerror = () => resolve(false);
+      req.onsuccess = () => {
+        const db = req.result;
+        const ok = db.objectStoreNames.contains("meta") && db.objectStoreNames.contains("chunks");
+        db.close();
+        resolve(ok);
+      };
+    });
+    if (!schemaOk) {
+      await deleteModelCacheDatabases().catch(() => {});
+      console.warn("Removed incomplete model cache database (missing object stores).");
+    }
+  } catch { /* ignore */ }
+}
+
+function deleteModelCacheDatabases() {
+  return Promise.all([
+    new Promise((resolve, reject) => {
+      const req = indexedDB.deleteDatabase(MODEL_CACHE_NAME);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+      req.onblocked = () => reject(new Error("Cache database is in use — refresh the page, then try again."));
+    }),
+    caches.delete(MODEL_CACHE_NAME),
+  ]);
+}
+
+async function clearModelCache() {
+  if (state.loading || state.busy) {
+    toast("Wait until the model finishes loading.");
+    return false;
+  }
+  try {
+    await deleteModelCacheDatabases();
+  } catch (err) {
+    toast(err?.message || "Could not clear model cache");
+    return false;
+  }
+  state.modelCached = false;
+  await refreshStorageUI();
+  toast("Model cache cleared.");
+  if (state.model) toast("Refresh the page before loading again for a clean re-download.");
+  return true;
+}
+
+function updateStorageButtons() {
+  const clearBtn = $("clear-model-cache-btn");
+  if (!clearBtn) return;
+  const busy = state.loading || state.busy;
+  const cacheCapable = !state.fileOrigin && "indexedDB" in window && "caches" in window;
+  clearBtn.disabled = !cacheCapable || busy;
+  clearBtn.title = state.fileOrigin
+    ? "Caching unavailable on file://"
+    : (!cacheCapable ? "Caching not supported in this browser context" : "");
+}
+
+function formatCacheStatus({ stored, declared }) {
+  if (stored > 0) {
+    if (declared && stored < declared * 0.9) {
+      return `Cached · ~${fmtBytes(stored)} of ~${fmtBytes(declared)} weights`;
+    }
+    return `Cached · ~${fmtBytes(stored)} model weights`;
+  }
+  if (declared) return `Cached · ~${fmtBytes(declared)} model file`;
+  return "Model cached · loads in seconds";
+}
+
+function updateEmptyCacheHint() {
+  const hint = $("empty-cache-hint");
+  if (!hint) return;
+  if (state.fileOrigin) {
+    hint.textContent = "";
+    return;
+  }
+  if (state.modelCached) {
+    hint.textContent = "Model cached locally · loads in seconds.";
+  } else if (!state.fileOrigin) {
+    hint.textContent = "First load downloads ~2.46 GB (one-time).";
+  } else {
+    hint.textContent = "";
+  }
+}
+
+async function refreshStorageUI() {
+  state.modelCached = await checkModelCached();
+  const statusText = $("storage-status-text");
+  if (statusText) {
+    if (state.fileOrigin) {
+      statusText.hidden = true;
+    } else {
+      statusText.hidden = false;
+      if (!("indexedDB" in window) || !("caches" in window)) {
+        statusText.textContent = "Caching not available";
+      } else if (state.modelCached) {
+        const size = await getModelCacheSize();
+        statusText.textContent = formatCacheStatus(size);
+      } else {
+        statusText.textContent = "Not cached yet";
+      }
+    }
+  }
+  updateStorageButtons();
+  updateEmptyCacheHint();
+  updateComposerState();
+}
+
+function loadButtonLabel(isHero) {
+  if (state.model) return "Model ready";
+  if (state.loading) return "Loading…";
+  if (isHero && state.modelCached && !state.fileOrigin) return "Start";
+  return "Load model";
+}
+
+function restoreIdleStatus() {
+  if (state.busy || state.loading) return;
+  if (state.model && state.webgpuLabel) setModelStatus("ready", state.webgpuLabel);
+  else if (state.webgpuLabel) setModelStatus("", state.webgpuLabel);
+  else if (!state.webgpuOk) setModelStatus("error", "WebGPU unavailable");
+  else setModelStatus("", "Not loaded");
+}
+
+function labelFor(status) {
+  return ({ init: "Requesting WebGPU…", tokenizer: "Loading tokenizer…", weights: "Downloading weights…", ready: "Model ready" })[status] || status;
+}
+
+function onLoadProgress(event) {
+  if (event.status !== "weights") {
+    const [lo, hi] = PHASE[event.status] || [0, 1];
+    const f = Number.isFinite(event.fraction) ? Math.min(1, Math.max(0, event.fraction)) : 0;
+    const label = `${labelFor(event.status)}${event.message ? " · " + event.message : ""}`;
+    setProgressTarget(lo + (hi - lo) * f);
+    state.progress.label = label;
+    setModelStatus("loading", label);
+    return;
+  }
+  const frac = Number.isFinite(event.fraction) ? Math.min(1, Math.max(0, event.fraction)) : null;
+  if (event.kind !== "tensors") setProgressTarget(0.05 + 0.95 * (frac ?? 0));
+  let label = "Preparing GPU weights…";
+  if (event.kind === "bytes") {
+    const verb = event.fromCache ? "Loading cached weights" : "Downloading weights";
+    const lr = event.loaded != null && event.total != null ? ` ${fmtBytes(event.loaded)}/${fmtBytes(event.total)}` : "";
+    label = `${verb}${lr}${frac != null ? ` · ${Math.round(frac * 100)}%` : ""}`;
+  }
+  state.progress.label = label;
+  setModelStatus("loading", label);
+}
+
+function setModelStatus(kind, text) {
+  const full = text || "Not loaded";
+  $("model-status").className = "status-chip" + (kind ? ` ${kind}` : "");
+  $("model-status").title = full;
+  $("model-status-text").textContent = full;
+  if (isEmptyStateVisible() && state.loading && $("empty-loader-progress").hidden === false) {
+    $("loader-status").textContent = full;
+  }
+}
+
+function updateEmptyLoader() {
+  const empty = isEmptyStateVisible();
+  const showHero = empty && !state.model;
+  $("empty-loader").style.display = showHero ? "" : "none";
+  if (!showHero) return;
+
+  if (state.loading) {
+    $("empty-loader-idle").hidden = true;
+    $("empty-loader-progress").hidden = false;
+  } else {
+    $("empty-loader-idle").hidden = false;
+    $("empty-loader-progress").hidden = true;
+  }
+  mountWebGpuBanner();
+}
+
+function updateComposerState() {
+  const canSend = state.model && !state.busy && !state.loading;
+  $("user-input").disabled = !canSend;
+  $("send-btn").disabled = !canSend;
+  $("send-btn").style.display = state.busy ? "none" : "";
+  $("stop-btn").style.display = state.busy ? "" : "none";
+
+  const loadDisabled = state.loading || state.busy || !state.webgpuOk || state.webgpuChecking || !!state.model;
+  for (const btn of [$("load-model-btn"), $("load-model-btn-hero")]) {
+    if (!btn) continue;
+    btn.disabled = loadDisabled;
+    btn.textContent = loadButtonLabel(btn.id === "load-model-btn-hero");
+    btn.title = state.model && state.modelLoadSecs ? `Loaded in ${state.modelLoadSecs}s` : "";
+  }
+
+  const topbarBtn = $("load-model-btn");
+  if (topbarBtn) {
+    topbarBtn.classList.toggle("primary", !isEmptyStateVisible() && !state.model);
+    topbarBtn.hidden = isEmptyStateVisible() && !state.model && !state.loading;
+  }
+
+  updateEmptyLoader();
+  updateStorageButtons();
+}
+
+async function loadModel() {
+  if (state.model || state.loading || !state.webgpuOk) return;
+  if (typeof globalThis.Gemma4Mobile !== "function") {
+    setModelStatus("error", "Runtime missing");
+    toast("Model runtime could not be loaded");
+    return;
+  }
+  state.loading = true;
+  updateComposerState();
+  $("load-bar-wrap").classList.add("show");
+  setProgressImmediate(0.02, "Requesting WebGPU…");
+  setModelStatus("loading", "Requesting WebGPU…");
+  const started = performance.now();
+  try {
+    const loadOpts = {
+      onProgress: onLoadProgress,
+      revision: MODEL_REVISION,
+      cacheName: MODEL_CACHE_NAME,
+    };
+    if (state.fileOrigin) loadOpts.cache = false;
+    state.model = await globalThis.Gemma4Mobile.load(null, loadOpts);
+    setModelStatus("loading", "Warming up…");
+    state.progress.label = "Warming up…";
+    setProgressTarget(0.99);
+    await state.model.warmup();
+    setProgressImmediate(1, "Model ready");
+    state.modelLoadSecs = ((performance.now() - started) / 1000).toFixed(1);
+    restoreIdleStatus();
+    setTimeout(() => $("load-bar-wrap").classList.remove("show"), 500);
+    requestPersistentStorage();
+    const cachedAfterLoad = await checkModelCached();
+    state.modelCached = cachedAfterLoad;
+    if (!cachedAfterLoad && !state.fileOrigin) {
+      toast("Model loaded, but couldn't be cached (browser may be low on storage). It will re-download next time.");
+    }
+    await refreshStorageUI();
+  } catch (err) {
+    console.error(err);
+    setModelStatus("error", `Failed · ${err?.message || err}`);
+    toast(`Model failed to load: ${err?.message || err}`);
+    state.model = null;
+    state.modelLoadSecs = null;
+  } finally {
+    state.loading = false;
+    updateComposerState();
+  }
+}
+
+/* ── Grammar & messages ── */
+
+function buildGrammarSuffix() {
+  if (state.grammarMode === "off") return "";
+  if (state.grammarMode === "json") {
+    const schema = $("grammar-json-schema").value.trim();
+    let block = "\n\n[GRAMMAR — respond with valid JSON only. No markdown fences, no prose outside JSON.]";
+    block += schema ? `\nConform to this JSON Schema:\n${schema}` : "\nOutput a single valid JSON value.";
+    return block;
+  }
+  if (state.grammarMode === "ebnf") {
+    const ebnf = $("grammar-custom").value.trim();
+    if (!ebnf) return "";
+    return `\n\n[GRAMMAR — output only text matching this EBNF. No explanation.]\n\`\`\`ebnf\n${ebnf}\n\`\`\``;
+  }
+  return "";
+}
+
+function buildEffectiveSystemPrompt(base) {
+  const trimmed = (base || "").trim();
+  const suffix = buildGrammarSuffix();
+  return trimmed || suffix ? trimmed + suffix : "";
+}
+
+function buildMessages(session) {
+  const msgs = [];
+  const sys = buildEffectiveSystemPrompt(session.systemPrompt);
+  if (sys) msgs.push({ role: "system", content: sys });
+  for (const m of session.messages) {
+    if (m.role === "user") msgs.push({ role: "user", content: m.content });
+    else if (m.role === "assistant") msgs.push({ role: "assistant", content: m.content });
+  }
+  return msgs;
+}
+
+/** OpenAI Chat Completions message list — portable JSON export (role + content only). */
+function exportSessionOpenAI(session) {
+  const msgs = [];
+  const sys = (session.systemPrompt || "").trim();
+  if (sys) msgs.push({ role: "system", content: sys });
+  for (const m of session.messages) {
+    if (m.role === "user" || m.role === "assistant") {
+      msgs.push({ role: m.role, content: m.content });
+    }
+  }
+  return msgs;
+}
+
+function sessionDownloadFilename(title) {
+  const slug = (title || "conversation").trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 60)
+    .replace(/^-|-$/g, "");
+  return `${slug || "conversation"}.json`;
+}
+
+function downloadSession(sessionId) {
+  const session = state.sessions.find(s => s.id === sessionId);
+  if (!session) return;
+  const messages = exportSessionOpenAI(session);
+  if (!messages.length) {
+    toast("Nothing to download — this conversation is empty");
+    return;
+  }
+  const json = JSON.stringify(messages, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = sessionDownloadFilename(session.title);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast(`Downloaded "${session.title}"`);
+}
+
+function splitThinking(raw) {
+  const text = raw || "";
+  let thinking = "", output = text;
+  const OPENERS = ["<|channel>thought", "<|think|>"];
+  let openIdx = -1, openLen = 0;
+  for (const op of OPENERS) {
+    const i = text.indexOf(op);
+    if (i !== -1 && (openIdx === -1 || i < openIdx)) { openIdx = i; openLen = op.length; }
+  }
+  if (openIdx !== -1) {
+    const before = text.slice(0, openIdx);
+    const after = text.slice(openIdx + openLen).replace(/^\n+/, "");
+    const close = after.indexOf("<channel|>");
+    if (close !== -1) {
+      thinking = after.slice(0, close).trim();
+      output = (after.slice(close + "<channel|>".length).replace(/^\n+/, "") + before).trim();
+    } else {
+      thinking = after.trim();
+      output = "";
+    }
+  }
+  return {
+    thinking,
+    output: output.replace(/<\|channel>thought/g, "").replace(/<\|think|>/g, "").replace(/<channel\|>/g, "").replace(/^\n+/, "").trim(),
+  };
+}
+
+function formatStreamStats({ tokCount, tps, ttft, prefix = "" } = {}) {
+  const parts = [];
+  if (Number.isFinite(tokCount) && tokCount > 0) parts.push(`${tokCount} tok`);
+  if (Number.isFinite(tps) && tps > 0) parts.push(`${tps} tok/s`);
+  if (ttft != null && ttft !== "") parts.push(`TTFT ${ttft}s`);
+  const core = parts.join(" · ");
+  if (!core) return prefix || "…";
+  return prefix ? `${prefix} · ${core}` : core;
+}
+
+function thinkLabel(meta, thinking) {
+  if (meta?.ttft) return `Thought for ${meta.ttft}s`;
+  if (meta?.tokens) return `Show thinking · ${meta.tokens} tok`;
+  if (thinking) return "Show thinking";
+  return "Thinking…";
+}
+
+function statsLine(meta) {
+  if (!meta) return "";
+  return `${meta.tokens} tok · ${meta.tps} tok/s · TTFT ${meta.ttft}s`;
+}
+
+function createAvatar(kind) {
+  const av = document.createElement("div");
+  av.className = `avatar ${kind}`;
+  setIcon(av, kind === "user" ? "user" : "spark");
+  return av;
+}
+
+function createMsgShell(roleName) {
+  const inner = document.createElement("div");
+  inner.className = "msg-inner";
+  const body = document.createElement("div");
+  body.className = "msg-body";
+  const card = document.createElement("div");
+  card.className = "msg-card";
+  const role = document.createElement("div");
+  role.className = "msg-role";
+  role.textContent = roleName;
+  card.appendChild(role);
+  body.appendChild(card);
+  return { inner, body, card };
+}
+
+function buildUserMessage(content) {
+  const wrap = document.createElement("div");
+  wrap.className = "msg user";
+  const shell = createMsgShell("You");
+  shell.inner.append(createAvatar("user"), shell.body);
+  const contentEl = document.createElement("div");
+  contentEl.className = "msg-content";
+  contentEl.textContent = content;
+  shell.card.appendChild(contentEl);
+  wrap.appendChild(shell.inner);
+  return wrap;
+}
+
+function buildAssistantMessage(msg, { streaming = false } = {}) {
+  const wrap = document.createElement("div");
+  wrap.className = "msg assistant" + (streaming ? " streaming" : "");
+  if (streaming) wrap.id = "streaming-msg";
+
+  const shell = createMsgShell("Gemma 4");
+  shell.inner.append(createAvatar("assistant"), shell.body);
+
+  const thinking = msg?.thinking || "";
+  const content = msg?.content || "";
+  const disclosure = buildThinkingDisclosure(thinking, msg?.meta, { streaming, open: streaming && !content });
+  if (disclosure) shell.card.appendChild(disclosure);
+
+  const response = document.createElement("div");
+  response.className = "response-content";
+  if (!streaming || content) response.textContent = content;
+  shell.card.appendChild(response);
+
+  if (!streaming) {
+    shell.card.appendChild(buildMsgFooter(content, msg?.meta));
+  } else {
+    const footer = document.createElement("div");
+    footer.className = "msg-footer stream-footer";
+    const stats = document.createElement("span");
+    stats.className = "msg-stats-inline";
+    stats.textContent = "…";
+    footer.appendChild(stats);
+    shell.card.appendChild(footer);
+  }
+
+  wrap.appendChild(shell.inner);
+  return wrap;
+}
+
+function buildThinkingDisclosure(thinking, meta, { streaming = false, open = false } = {}) {
+  if (!streaming && !thinking) return null;
+  const details = document.createElement("details");
+  details.className = "think-disclosure";
+  if (open) details.open = true;
+
+  const summary = document.createElement("summary");
+  const label = document.createElement("span");
+  label.className = "think-label";
+  label.textContent = streaming && !thinking ? "Thinking…" : thinkLabel(meta, thinking);
+  const chev = icon("chevron");
+  chev.classList.add("chevron");
+  summary.append(icon("brain"), label, chev);
+
+  const content = document.createElement("div");
+  content.className = "think-content";
+  if (streaming && !thinking) {
+    content.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div>';
+  } else {
+    content.textContent = thinking;
+  }
+
+  details.append(summary, content);
+  return details;
+}
+
+function buildMsgFooter(content, meta) {
+  const footer = document.createElement("div");
+  footer.className = "msg-footer";
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "footer-action";
+  copyBtn.dataset.copy = "1";
+  copyBtn.append(icon("copy"));
+  const copyLabel = document.createElement("span");
+  copyLabel.className = "copy-label";
+  copyLabel.textContent = " Copy";
+  copyBtn.append(copyLabel);
+  const stats = document.createElement("span");
+  stats.className = "msg-stats-inline";
+  stats.textContent = statsLine(meta);
+  footer.append(copyBtn, stats);
+  copyBtn._copyText = content;
+  return footer;
+}
+
+/* ── Rendering ── */
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function formatTime(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  return d.toDateString() === now.toDateString()
+    ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function sessionDateGroup(ts) {
+  const now = new Date();
+  const d = new Date(ts);
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startYesterday = new Date(startToday.getTime() - 86400000);
+  const startWeek = new Date(startToday.getTime() - 6 * 86400000);
+  if (d >= startToday) return "Today";
+  if (d >= startYesterday) return "Yesterday";
+  if (d >= startWeek) return "Previous 7 days";
+  return "Older";
+}
+
+function filteredSessions() {
+  const q = state.sessionSearch.trim().toLowerCase();
+  return state.sessions.filter(s => !q || s.title.toLowerCase().includes(q));
+}
+
+function updateChatTitle() {
+  const session = activeSession();
+  $("chat-title").textContent = session?.title || "New chat";
+}
+
+function startRenameSession(id) {
+  state.renamingSessionId = id;
+  renderSessionList();
+}
+
+function finishRenameSession(id, value) {
+  state.renamingSessionId = null;
+  renameSession(id, value);
+}
+
+function startRenameActiveChat() {
+  const session = activeSession();
+  if (!session) return;
+  const wrap = $("chat-title").parentElement;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "chat-title-input";
+  input.value = session.title;
+  input.maxLength = 80;
+  wrap.replaceChildren(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const restore = () => {
+    const h = document.createElement("h2");
+    h.className = "chat-title";
+    h.id = "chat-title";
+    h.textContent = activeSession()?.title || "New chat";
+    h.addEventListener("dblclick", startRenameActiveChat);
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "chat-title-edit";
+    edit.id = "chat-title-edit";
+    edit.setAttribute("aria-label", "Rename conversation");
+    edit.title = "Rename";
+    edit.addEventListener("click", startRenameActiveChat);
+    setIcon(edit, "edit");
+    wrap.replaceChildren(h, edit);
+  };
+  const commit = () => {
+    if (done) return;
+    done = true;
+    renameSession(session.id, input.value);
+    restore();
+  };
+  input.addEventListener("blur", commit);
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+    if (e.key === "Escape") { done = true; restore(); }
+  });
+}
+
+function bindSessionDeleteConfirm(btn) {
+  btn.addEventListener("click", e => {
+    e.stopPropagation();
+    const row = btn.closest(".session-item");
+    const sessionId = btn.dataset.del;
+    const title = row.querySelector(".session-title")?.textContent || "Conversation";
+    const actions = row.querySelector(".session-actions");
+    row.classList.add("confirming");
+    actions.innerHTML = `
+      <span class="confirm-label">Delete?</span>
+      <button type="button" class="icon-btn" data-cancel aria-label="Cancel"></button>
+      <button type="button" class="icon-btn danger" data-confirm aria-label="Confirm delete"></button>`;
+    setIcon(actions.querySelector("[data-cancel]"), "close");
+    setIcon(actions.querySelector("[data-confirm]"), "trash");
+
+    const revert = () => {
+      row.classList.remove("confirming");
+      renderSessionList();
+    };
+    let timer = setTimeout(revert, 4000);
+    actions.querySelector("[data-cancel]").onclick = ev => { ev.stopPropagation(); clearTimeout(timer); revert(); };
+    actions.querySelector("[data-confirm]").onclick = async ev => {
+      ev.stopPropagation();
+      clearTimeout(timer);
+      await deleteSession(sessionId);
+      toast(`"${title}" deleted`);
+    };
+  });
+}
+
+function renderSessionList() {
+  const list = $("session-list");
+  const sessions = filteredSessions();
+  $("session-search-wrap").classList.toggle("show", state.sessions.length > 8);
+
+  if (!sessions.length) {
+    list.innerHTML = `<div style="padding:8px 12px;font-size:12px;color:var(--text-muted)">${state.sessionSearch ? "No matches" : "No conversations"}</div>`;
+    return;
+  }
+
+  const groups = new Map();
+  for (const s of sessions) {
+    const g = sessionDateGroup(s.updatedAt);
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(s);
+  }
+  const order = ["Today", "Yesterday", "Previous 7 days", "Older"];
+  list.innerHTML = order.filter(g => groups.has(g)).map(g => {
+    const items = groups.get(g).map(s => {
+      const renaming = state.renamingSessionId === s.id;
+      return `
+        <div class="session-item ${s.id === state.activeSessionId ? "active" : ""}" data-id="${esc(s.id)}" tabindex="0">
+          <div class="session-row">
+            ${renaming
+              ? `<input class="session-title-input" data-rename-input="${esc(s.id)}" value="${esc(s.title)}">`
+              : `<span class="session-title" title="${esc(s.title)}">${esc(s.title)}</span>`}
+            <div class="session-actions">
+              <button type="button" class="icon-btn" data-rename="${esc(s.id)}" aria-label="Rename" title="Rename"></button>
+              <button type="button" class="icon-btn" data-download="${esc(s.id)}" aria-label="Download conversation" title="Download JSON"></button>
+              <button type="button" class="icon-btn danger" data-del="${esc(s.id)}" aria-label="Delete" title="Delete"></button>
+            </div>
+          </div>
+          <div class="session-meta">${s.messages.length} messages · ${formatTime(s.updatedAt)}</div>
+        </div>`;
+    }).join("");
+    return `<div class="session-group-label">${g}</div>${items}`;
+  }).join("");
+
+  list.querySelectorAll(".session-item").forEach(el => {
+    el.addEventListener("click", e => {
+      if (e.target.closest(".icon-btn") || e.target.closest("input")) return;
+      switchSession(el.dataset.id);
+    });
+    el.addEventListener("keydown", e => {
+      if (e.key === "Enter" && !e.target.closest("input")) switchSession(el.dataset.id);
+    });
+  });
+  list.querySelectorAll("[data-rename]").forEach(btn => {
+    setIcon(btn, "edit");
+    btn.addEventListener("click", e => { e.stopPropagation(); startRenameSession(btn.dataset.rename); });
+  });
+  list.querySelectorAll("[data-download]").forEach(btn => {
+    setIcon(btn, "download");
+    btn.addEventListener("click", e => { e.stopPropagation(); downloadSession(btn.dataset.download); });
+  });
+  list.querySelectorAll("[data-del]").forEach(btn => {
+    setIcon(btn, "trash");
+    bindSessionDeleteConfirm(btn);
+  });
+  list.querySelectorAll("[data-rename-input]").forEach(input => {
+    input.addEventListener("click", e => e.stopPropagation());
+    input.focus();
+    input.select();
+    const commit = () => finishRenameSession(input.dataset.renameInput, input.value);
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { state.renamingSessionId = null; renderSessionList(); }
+    });
+  });
+}
+
+function syncUIFromSession() {
+  const session = activeSession();
+  if (!session) return;
+  $("system-prompt").value = session.systemPrompt || "";
+  updateChatTitle();
+  updateGrammarUI();
+}
+
+function updateGrammarUI() {
+  document.querySelectorAll("#grammar-modes .seg-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.mode === state.grammarMode);
+  });
+  $("grammar-json-wrap").classList.toggle("show", state.grammarMode === "json");
+  $("grammar-ebnf-wrap").classList.toggle("show", state.grammarMode === "ebnf");
+  $("max-tokens").value = state.maxNewTokens;
+}
+
+function renderChat() {
+  const session = activeSession();
+  const container = $("chat-messages");
+  const empty = $("empty-state");
+  container.replaceChildren();
+
+  if (!session?.messages.length) {
+    empty.style.display = "";
+    mountWebGpuBanner();
+    updateEmptyLoader();
+    return;
+  }
+  empty.style.display = "none";
+
+  for (const msg of session.messages) {
+    if (msg.role === "user") {
+      container.appendChild(buildUserMessage(msg.content));
+    } else {
+      container.appendChild(buildAssistantMessage(msg));
+    }
+  }
+  mountWebGpuBanner();
+  $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
+}
+
+/* ── Streaming ── */
+
+let renderScheduled = false, renderState = null;
+
+function createStreamingMessage() {
+  $("empty-state").style.display = "none";
+  $("chat-messages").appendChild(buildAssistantMessage(null, { streaming: true }));
+  mountWebGpuBanner();
+  $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
+}
+
+function scheduleStreamRender() {
+  if (renderScheduled) return;
+  renderScheduled = true;
+  requestAnimationFrame(() => { renderScheduled = false; if (renderState) renderStreamFrame(renderState); });
+}
+
+function renderStreamFrame({ raw, tokCount, tps, ttft }) {
+  const { thinking, output } = splitThinking(raw);
+  const msgEl = $("streaming-msg");
+  if (!msgEl) return;
+
+  const tokStr = formatStreamStats({ tokCount, tps, ttft: null });
+  const fullStr = formatStreamStats({ tokCount, tps, ttft });
+
+  const disclosure = msgEl.querySelector(".think-disclosure");
+  const thinkContent = msgEl.querySelector(".think-content");
+  const thinkLabelEl = msgEl.querySelector(".think-label");
+  const response = msgEl.querySelector(".response-content");
+  const footer = msgEl.querySelector(".stream-footer");
+  const stats = msgEl.querySelector(".msg-stats-inline");
+
+  if (thinking || !output) {
+    if (!disclosure) {
+      const card = msgEl.querySelector(".msg-card");
+      const disc = buildThinkingDisclosure(thinking, null, { streaming: true, open: true });
+      card.insertBefore(disc, response);
+    }
+    if (thinkContent) {
+      if (thinking) thinkContent.textContent = thinking;
+      else thinkContent.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div>';
+    }
+    if (thinkLabelEl) {
+      thinkLabelEl.textContent = thinking
+        ? formatStreamStats({ tokCount, tps, ttft: null, prefix: "Thinking…" })
+        : "Thinking…";
+    }
+    if (disclosure) disclosure.open = !output;
+  } else if (disclosure) {
+    disclosure.open = false;
+    if (thinkLabelEl && thinking) {
+      thinkLabelEl.textContent = formatStreamStats({ tokCount, tps, ttft: null, prefix: "Thought" });
+    }
+  }
+
+  if (response) {
+    response.textContent = output;
+    if (output) {
+      const c = document.createElement("span");
+      c.className = "stream-cursor";
+      response.appendChild(c);
+    }
+  }
+
+  let respMeta = msgEl.querySelector(".response-stream-meta");
+  if (output) {
+    if (!respMeta) {
+      respMeta = document.createElement("div");
+      respMeta.className = "response-stream-meta";
+      response.insertAdjacentElement("afterend", respMeta);
+    }
+    respMeta.textContent = tokStr;
+    respMeta.hidden = false;
+  } else if (respMeta) {
+    respMeta.hidden = true;
+  }
+
+  if (stats) stats.textContent = fullStr;
+  if (footer && output) {
+    const copyBtn = footer.querySelector("[data-copy]");
+    if (!copyBtn) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "footer-action";
+      btn.dataset.copy = "1";
+      btn.append(icon("copy"));
+      const copyLabel = document.createElement("span");
+      copyLabel.className = "copy-label";
+      copyLabel.textContent = " Copy";
+      btn.append(copyLabel);
+      btn._copyText = output;
+      footer.insertBefore(btn, stats);
+    } else {
+      copyBtn._copyText = output;
+    }
+  }
+
+  if (state.busy) setModelStatus("busy", fullStr);
+
+  $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
+}
+
+function removeStreamingMessage() {
+  $("streaming-msg")?.remove();
+}
+
+/* ── Copy handler ── */
+
+$("chat-messages").addEventListener("click", async e => {
+  const btn = e.target.closest("[data-copy]");
+  if (!btn) return;
+  const text = btn._copyText || btn.closest(".msg.assistant")?.querySelector(".response-content")?.textContent || "";
+  try {
+    await navigator.clipboard.writeText(text);
+    const label = btn.querySelector(".copy-label") || (() => {
+      const span = document.createElement("span");
+      span.className = "copy-label";
+      span.textContent = " Copy";
+      btn.appendChild(span);
+      return span;
+    })();
+    label.textContent = " Copied";
+    toast("Copied to clipboard");
+    setTimeout(() => { label.textContent = " Copy"; }, 1500);
+  } catch {
+    toast("Copy failed");
+  }
+});
+
+/* ── Send ── */
+
+async function switchSession(id) {
+  state.activeSessionId = id;
+  savePrefs();
+  renderSessionList();
+  renderChat();
+  syncUIFromSession();
+  if (state.model) try { state.model.reset(); } catch { /* ignore */ }
+  $("sidebar").classList.remove("open");
+}
+
+async function sendMessage() {
+  const input = $("user-input");
+  const text = input.value.trim();
+  if (!text || !state.model || state.busy) return;
+  const session = activeSession();
+  if (!session) return;
+
+  session.systemPrompt = $("system-prompt").value;
+  session.messages.push({ role: "user", content: text });
+  if (session.messages.length === 1) session.title = text.slice(0, 50) + (text.length > 50 ? "…" : "");
+  await persistSession(session);
+
+  input.value = "";
+  input.style.height = "auto";
+  renderChat();
+  renderSessionList();
+
+  state.busy = true;
+  state.abort = new AbortController();
+  updateComposerState();
+  setModelStatus("busy", "Generating…");
+  createStreamingMessage();
+
+  let raw = "", startedAt = 0, firstTokenAt = 0, generatedTokens = 0;
+  let stopped = false;
+  try {
+    const stream = state.model.generate(buildMessages(session), {
+      maxNewTokens: state.maxNewTokens,
+      signal: state.abort.signal,
+    });
+    startedAt = performance.now();
+    for await (const { text: streamed } of stream) {
+      const now = performance.now();
+      if (!firstTokenAt) firstTokenAt = now;
+      generatedTokens++;
+      raw = streamed;
+      const decodeSec = Math.max((now - firstTokenAt) / 1000, 1e-9);
+      const tps = generatedTokens > 1 ? Math.round((generatedTokens - 1) / decodeSec) : 0;
+      renderState = {
+        raw, tokCount: generatedTokens, tps,
+        ttft: firstTokenAt ? ((firstTokenAt - startedAt) / 1000).toFixed(1) : null,
+      };
+      scheduleStreamRender();
+    }
+  } catch (err) {
+    console.error(err);
+    stopped = true;
+    if (!raw) raw = `_Stopped: ${err?.message || err}_`;
+    if (err?.name === "AbortError" || String(err?.message || "").includes("abort")) {
+      toast("Stopped generating");
+    }
+  } finally {
+    const endedAt = performance.now();
+    const decodeSec = Math.max((endedAt - firstTokenAt) / 1000, 1e-9);
+    const tps = generatedTokens > 1 ? ((generatedTokens - 1) / decodeSec).toFixed(1) : "0";
+    const ttft = firstTokenAt ? ((firstTokenAt - startedAt) / 1000).toFixed(1) : "0";
+    const { thinking, output } = splitThinking(raw);
+    removeStreamingMessage();
+    session.messages.push({
+      role: "assistant",
+      content: output || raw || "(no output)",
+      thinking: thinking || "",
+      meta: { tokens: generatedTokens, tps, ttft },
+    });
+    await persistSession(session);
+    renderChat();
+    renderSessionList();
+    state.busy = false;
+    state.abort = null;
+    restoreIdleStatus();
+    updateComposerState();
+  }
+}
+
+/* ── Init ── */
+
+function autoResizeTextarea(el) {
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 160) + "px";
+}
+
+function initStaticIcons() {
+  setIcon($("brand-icon"), "spark");
+  setIcon($("empty-icon"), "spark");
+  setIcon($("sidebar-toggle"), "menu");
+  setIcon($("chat-title-edit"), "edit");
+  setIcon($("send-btn"), "send");
+  const newBtn = $("new-chat-btn");
+  newBtn.append(icon("plus"), document.createTextNode(" New conversation"));
+}
+
+async function init() {
+  initStaticIcons();
+  initTheme();
+
+  try {
+    state.db = await openDB();
+    state.sessions = await dbGetAll();
+    state.sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+  } catch (err) {
+    console.error(err);
+    state.sessions = [];
+  }
+
+  loadPrefs();
+  updateGrammarUI();
+  if (!state.sessions.length) await createSession();
+  else if (!state.activeSessionId || !state.sessions.find(s => s.id === state.activeSessionId)) {
+    state.activeSessionId = state.sessions[0].id;
+  }
+
+  renderSessionList();
+  renderChat();
+  syncUIFromSession();
+  updateComposerState();
+
+  if (state.fileOrigin) $("file-origin-note").hidden = false;
+
+  await probeWebGPU();
+  await repairBrokenModelCache();
+  await refreshStorageUI();
+}
+
+$("theme-toggle").addEventListener("click", () => {
+  applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+});
+$("load-model-btn").addEventListener("click", loadModel);
+$("load-model-btn-hero").addEventListener("click", loadModel);
+$("new-chat-btn").addEventListener("click", async () => {
+  await createSession();
+  renderSessionList(); renderChat(); syncUIFromSession();
+  if (state.model) try { state.model.reset(); } catch { /* ignore */ }
+});
+$("sidebar-toggle").addEventListener("click", () => $("sidebar").classList.toggle("open"));
+$("chat-title").addEventListener("dblclick", startRenameActiveChat);
+$("chat-title-edit").addEventListener("click", startRenameActiveChat);
+$("session-search").addEventListener("input", () => {
+  state.sessionSearch = $("session-search").value;
+  renderSessionList();
+  savePrefs();
+});
+
+document.querySelectorAll("#grammar-modes .seg-btn").forEach(btn => {
+  btn.addEventListener("click", () => { state.grammarMode = btn.dataset.mode; savePrefs(); updateGrammarUI(); });
+});
+
+let debounceTimer = null;
+function debounceSave(fn) {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(fn, 350);
+}
+
+$("system-prompt").addEventListener("input", () => debounceSave(async () => {
+  const s = activeSession(); if (!s) return;
+  s.systemPrompt = $("system-prompt").value;
+  await persistSession(s);
+}));
+
+for (const id of ["grammar-json-schema", "grammar-custom"]) {
+  $(id).addEventListener("input", () => debounceSave(savePrefs));
+}
+
+$("max-tokens").addEventListener("change", () => {
+  state.maxNewTokens = Math.max(64, Math.min(8192, parseInt($("max-tokens").value, 10) || 4096));
+  $("max-tokens").value = state.maxNewTokens;
+  savePrefs();
+});
+
+$("clear-model-cache-btn").addEventListener("click", () => clearModelCache());
+
+for (const id of ["system-block", "settings-block", "storage-block", "credits-block"]) {
+  $(id).addEventListener("toggle", savePrefs);
+}
+
+$("send-btn").addEventListener("click", sendMessage);
+$("stop-btn").addEventListener("click", () => { state.abort?.abort(); toast("Stopping…"); });
+$("user-input").addEventListener("input", () => autoResizeTextarea($("user-input")));
+$("user-input").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+init();
+</script>
+</body>
+</html>
