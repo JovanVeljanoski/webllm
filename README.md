@@ -48,13 +48,34 @@ The live demo is hosted on GitHub Pages — see [Try it live](#try-it-live) abov
 
 ## Project layout
 
-| File | Purpose |
+| Path | Purpose |
 |------|---------|
-| `index.html` | Full app — UI, chat logic, model switcher, caching, export (single file, no build step) |
+| `index.html` | App shell — UI, DOM wiring, model load/generate (imports `lib/*`) |
+| `lib/` | Testable core logic (sessions, messages, cache, prefs, formatting, …) |
 | `gemma-4-e2b.js` | WebGPU runtime for Gemma 4 E2B (`Gemma4Mobile.load`, generate, safetensors cache) |
 | `lfm2_5.js` | WebGPU runtime for LFM2.5 GGUF models (`Lfm2Mobile.load`, shared by 230M & 350M) |
+| `tests/` | Vitest unit tests (no real WebGPU inference) |
 
-There is no npm install or bundler. Deploy these files as static assets.
+Production deploy is still static assets — no bundler. For local development and CI, run `npm install` once to get the test runner.
+
+## Testing
+
+```bash
+npm install
+npm test          # single run
+npm run test:watch
+npm run lint      # ESLint on lib/ and tests/
+```
+
+Tests cover pure logic in `lib/` (message building, session filtering, cache introspection, prefs, formatting, browser detection, etc.) using Vitest and `fake-indexeddb`. Real model load and WebGPU inference are intentionally excluded.
+
+CI runs `npm run lint` and `npm test` on every pull request and on pushes to `master` (see `.github/workflows/ci.yml`).
+
+Serve the app over HTTP when manually smoke-testing modules:
+
+```bash
+python3 -m http.server 8080
+```
 
 ## Implementation notes for developers
 
@@ -65,17 +86,30 @@ There is no npm install or bundler. Deploy these files as static assets.
   - **Cache Storage** — tokenizer, config, small JSON assets
   - **IndexedDB** — safetensors weight chunks (~256 KB blobs, HTTP Range requests)
 - **GGUF cache** (LFM2.5) — Cache Storage per model (`webllm-lfm2-v1` for 230M, `webllm-lfm2-350m-v1` for 350M; each with `-headers`)
-- **Chat persistence** — separate IndexedDB database for sessions; clearing model cache does not delete conversations.
+- **Chat persistence** — IndexedDB database `webllm-sessions`; `localStorage` keys `webllm:prefs` and `webllm:theme`. Clearing model cache does not delete conversations.
 
-### Key integration points in `index.html`
+### Storage names (v0.0.5+)
 
-- `MODELS` registry — add entries with `runtime`, `hubId`, `cacheName`, `cacheType`, `supportsThinking`
-- `Gemma4Mobile.load(null, { revision, cacheName, onProgress })` — Gemma weights
+| Resource | Key / name |
+|----------|------------|
+| Chat sessions | IndexedDB `webllm-sessions` |
+| User prefs | `localStorage` `webllm:prefs` |
+| Theme | `localStorage` `webllm:theme` |
+| Gemma weights cache | IndexedDB + Cache Storage `webllm-gemma4-v1` |
+| LFM2.5 230M cache | Cache Storage `webllm-lfm2-v1` (+ `-headers`) |
+| LFM2.5 350M cache | Cache Storage `webllm-lfm2-350m-v1` (+ `-headers`) |
+
+Older `gemma4-chat*` names are not migrated (pre-release; users re-download weights once).
+
+### Key integration points
+
+- `lib/models.js` — `MODELS` registry; add entries with `runtime`, `hubId`, `cacheName`, `cacheType`, `supportsThinking`
+- `Gemma4Mobile.load(null, { revision, cacheName, onProgress })` — Gemma weights (`gemma-4-e2b.js` injected on first Gemma load)
 - `Lfm2Mobile.load(hubId, { revision, cacheName, onProgress })` — LFM2.5 GGUF (dynamic `import("./lfm2_5.js")`)
 - `state.fileOrigin` — disables cache on `file://`; production must use `https://`
-- `buildMessages(session)` — builds the message list sent to the model (system + user/assistant turns)
+- `lib/messages.js` — `buildMessages(session, grammarConfig)` builds the message list sent to the model
 - `exportSessionOpenAI(session)` — exports portable OpenAI Chat Completions JSON
-- `getModelCacheSize()` — measures cached bytes from IDB + Cache Storage (prefer over `navigator.storage.estimate()`, which underreports on Safari)
+- `lib/cache.js` — `getModelCacheSize()`, `checkModelCached()`; prefer over `navigator.storage.estimate()` (underreports on Safari)
 
 ### WebGPU probe
 
@@ -83,10 +117,10 @@ On load, the app checks `navigator.gpu`, requests an adapter, and shows browser-
 
 ### Contributing
 
-- Keep the production surface minimal: `index.html` + runtime JS files
+- Keep the production surface minimal: `index.html` + `lib/` + runtime JS files
 - Match existing patterns (vanilla JS, CSS variables, no framework)
-- Test on **HTTPS** (GitHub Pages URL) before shipping cache-related changes
-- Bump `MODEL_REVISION` and `MODEL_CACHE_NAME` together when changing model weights
+- Run `npm test` before cache- or message-related changes; smoke-test on **HTTPS** before shipping
+- Bump each model's `revision` and `cacheName` in `MODELS` together when changing model weights (Gemma: `GEMMA_REVISION` + `gemma4.cacheName`)
 
 ## License
 
