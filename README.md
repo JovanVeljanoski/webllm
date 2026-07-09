@@ -2,6 +2,16 @@
 
 A private AI chat that runs **entirely in your browser** — no server, no API keys, no data leaving your device. WebLLM is a demo and starting point for local WebGPU inference. The default model today is Gemma 4 E2B; the app is designed to support additional models over time.
 
+## Try it live
+
+**[https://jovanveljanoski.github.io/webllm/](https://jovanveljanoski.github.io/webllm/)**
+
+1. Open the link in **Chrome, Edge, or Safari 18+** (Firefox is not supported for inference).
+2. Click **Load model** — the first visit downloads ~2.5 GB of weights from Hugging Face (one-time).
+3. Wait for **Model ready**, then chat. Refresh later and the model loads from your browser cache in seconds.
+
+Everything runs on your device. Conversations and cached weights stay in your browser — nothing is sent to a WebLLM server.
+
 ## Credit
 
 This demo would not be possible without **Transformers.js** and the work of **Joshua Lochner** ([@xenovacom](https://x.com/xenovacom) · [GitHub](https://github.com/Xenova)), who pioneered running state-of-the-art ML models in the browser with WebGPU. WebLLM is meant to showcase that stack, inspire local use cases, and promote his work — not to replace it.
@@ -32,7 +42,7 @@ Then open [http://localhost:8080](http://localhost:8080).
 
 ### GitHub Pages
 
-Push this repo and enable Pages (branch root or `/docs`). The app must be served over **HTTPS** for model caching to work. First visit downloads ~2.5 GB; refresh loads from cache in seconds.
+The live demo is hosted on GitHub Pages — see [Try it live](#try-it-live) above. Pushes to `master` redeploy automatically.
 
 ## Project layout
 
