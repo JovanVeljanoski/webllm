@@ -149,6 +149,23 @@
   .icon-btn:focus-visible { outline: var(--focus-ring); outline-offset: 1px; }
 
   .sidebar-scroll { flex: 1; min-height: 0; overflow-y: auto; border-top: 1px solid var(--border-soft); padding: 8px 0 12px; }
+  .sidebar-footer {
+    flex: none; padding: 10px 14px 12px; border-top: 1px solid var(--border-soft);
+    display: flex; align-items: center; justify-content: center; width: 100%;
+  }
+  .version-badge {
+    display: inline-flex; align-items: baseline; gap: 5px;
+    padding: 3px 7px; border-radius: 4px;
+    border: 1px solid var(--border-soft); background: transparent;
+  }
+  .version-label {
+    font-size: 9px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--text-muted);
+  }
+  .version-num {
+    font-family: var(--mono); font-size: 10px; font-weight: 500;
+    color: var(--text-muted); letter-spacing: 0.01em;
+  }
   .side-block { margin: 0 10px 6px; }
   .side-block > summary {
     list-style: none; cursor: pointer; padding: 10px 12px; border-radius: var(--radius-xs);
@@ -562,6 +579,9 @@
         </div>
       </details>
     </div>
+    <div class="sidebar-footer">
+      <div class="version-badge" id="app-version" aria-label="App version"></div>
+    </div>
   </aside>
 
   <div id="main">
@@ -636,6 +656,7 @@ const MODEL_CACHE_NAME = "gemma4-chat-model-v1";
 const MODEL_META_URL = `https://huggingface.co/${MODEL_ID}/resolve/${MODEL_REVISION}/model.safetensors`;
 
 const ASSISTANT_LABEL = "Assistant";
+const APP_VERSION = "0.0.1";
 
 const ICONS = {
   webllm: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.75 8 7.25 12l2.5 4"/><path d="M14.25 8 16.75 12l-2.5 4"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 5.75v1.5M12 16.75v1.5"/></svg>',
@@ -2077,6 +2098,11 @@ function initStaticIcons() {
   setIcon($("send-btn"), "send");
   const newBtn = $("new-chat-btn");
   newBtn.append(icon("plus"), document.createTextNode(" New conversation"));
+  const versionEl = $("app-version");
+  if (versionEl) {
+    versionEl.setAttribute("aria-label", `App version ${APP_VERSION}`);
+    versionEl.innerHTML = `<span class="version-label">Version</span><span class="version-num">${APP_VERSION}</span>`;
+  }
 }
 
 async function init() {

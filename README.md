@@ -74,4 +74,4 @@ On load, the app checks `navigator.gpu`, requests an adapter, and shows browser-
 
 ## License
 
-Check the license on the upstream Transformers.js / model repos. This demo repo is provided as-is for education and inspiration.
+MIT
