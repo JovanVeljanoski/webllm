@@ -108,7 +108,7 @@
     padding: 8px 18px 6px; font-size: 10px; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.08em; color: var(--text-muted);
   }
-  #session-search-wrap { padding: 0 10px 8px; display: none; }
+  #session-search-wrap { padding: 0 0 8px; display: none; }
   #session-search-wrap.show { display: block; }
   #session-search {
     width: 100%; border: 1px solid var(--border); border-radius: var(--radius-xs);
@@ -117,7 +117,12 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");
     background-repeat: no-repeat; background-position: 10px center;
   }
-  #session-list { flex: none; max-height: 240px; overflow-y: auto; padding: 0 10px 8px; }
+  #conversations-block { flex: none; }
+  #conversations-block .side-block-body { padding-top: 0; }
+  #session-list {
+    flex: none; max-height: 212px; overflow-y: auto;
+    padding: 0; scrollbar-gutter: stable;
+  }
   .session-group-label {
     padding: 10px 8px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.07em; color: var(--text-muted);
@@ -136,6 +141,7 @@
     border: 1px solid var(--accent); border-radius: 6px; padding: 2px 6px; background: var(--bg-chat); color: var(--text);
   }
   .session-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; padding-left: 2px; }
+  .conv-count { font-weight: 500; color: var(--text-muted); }
   .session-actions { display: flex; align-items: center; gap: 2px; opacity: 0; transition: opacity 0.12s; }
   .session-item:hover .session-actions, .session-item.confirming .session-actions { opacity: 1; }
   .confirm-label { font-size: 11px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
@@ -151,8 +157,22 @@
   .sidebar-scroll { flex: 1; min-height: 0; overflow-y: auto; border-top: 1px solid var(--border-soft); padding: 8px 0 12px; }
   .sidebar-footer {
     flex: none; padding: 10px 14px 12px; border-top: 1px solid var(--border-soft);
-    display: flex; align-items: center; justify-content: center; width: 100%;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
   }
+  .credits-btn {
+    appearance: none; border: none; background: transparent; font-family: inherit;
+    font-size: 11px; font-weight: 600; color: var(--accent); cursor: pointer;
+    padding: 3px 0; border-radius: 4px; flex: none;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
+    text-decoration-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+  .credits-btn:hover {
+    text-decoration-style: solid;
+    text-decoration-color: var(--accent);
+  }
+  .credits-btn:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
   .version-badge {
     display: inline-flex; align-items: baseline; gap: 5px;
     padding: 3px 7px; border-radius: 4px;
@@ -203,6 +223,22 @@
   }
   .seg-btn.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
   .seg-btn:focus-visible { outline: var(--focus-ring); outline-offset: 1px; }
+  .model-picker { display: flex; flex-direction: column; gap: 6px; }
+  .model-option {
+    position: relative; display: flex; flex-direction: column; gap: 2px;
+    padding: 10px 12px; border-radius: var(--radius-xs);
+    border: 1px solid var(--border); background: var(--surface-2);
+    cursor: pointer; transition: border-color 0.12s, background 0.12s; text-align: left;
+  }
+  .model-option:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+  .model-option.active { border-color: var(--accent); background: var(--accent-soft); }
+  .model-option.disabled { opacity: 0.55; cursor: not-allowed; pointer-events: none; }
+  .model-option input { position: absolute; opacity: 0; pointer-events: none; }
+  .model-option-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .model-option-meta { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+  .model-option-badge {
+    font-size: 10px; font-weight: 600; color: var(--accent); margin-top: 2px;
+  }
   .grammar-extra { display: none; margin-top: 8px; }
   .grammar-extra.show { display: block; }
   .grammar-extra textarea { min-height: 72px; font-family: var(--mono); font-size: 11px; }
@@ -212,9 +248,29 @@
   .storage-actions .btn { width: 100%; text-align: center; font-size: 12px; padding: 8px 10px; }
   .storage-actions .btn:disabled { opacity: 0.5; }
   .empty-cache-hint { margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); max-width: 400px; }
-  #credits-body { font-size: 12px; color: var(--text-muted); line-height: 1.55; min-height: 20px; }
+  #credits-body { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
   #credits-body a { color: var(--accent); text-decoration: none; font-weight: 600; }
   #credits-body a:hover { text-decoration: underline; }
+
+  .credits-dialog {
+    border: none; border-radius: var(--radius); padding: 0; margin: auto;
+    max-width: 420px; width: calc(100% - 32px); background: var(--surface); color: var(--text);
+    box-shadow: var(--shadow-lg);
+  }
+  .credits-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+  .credits-dialog-inner { padding: 20px 22px 22px; }
+  .credits-dialog-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px;
+  }
+  .credits-dialog-header h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--text); }
+  .credits-dialog-close {
+    appearance: none; cursor: pointer; width: 28px; height: 28px; border-radius: 8px;
+    background: transparent; border: none; color: var(--text-muted);
+    display: grid; place-items: center; flex: none;
+  }
+  .credits-dialog-close .icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+  .credits-dialog-close:hover { background: var(--surface-2); color: var(--text); }
+  .credits-dialog-close:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
 
   /* ── Main ── */
   #main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-chat); min-height: 0; }
@@ -517,11 +573,22 @@
     <div class="sidebar-actions">
       <button type="button" class="btn-new" id="new-chat-btn"></button>
     </div>
-    <div id="session-search-wrap">
-      <input type="search" id="session-search" placeholder="Search conversations…" aria-label="Search conversations">
-    </div>
-    <div id="session-list"></div>
+    <details class="side-block" id="conversations-block" open>
+      <summary>Conversations <span class="conv-count" id="conv-count"></span></summary>
+      <div class="side-block-body">
+        <div id="session-search-wrap">
+          <input type="search" id="session-search" placeholder="Search conversations…" aria-label="Search conversations">
+        </div>
+        <div id="session-list"></div>
+      </div>
+    </details>
     <div class="sidebar-scroll">
+      <details class="side-block" id="model-block" open>
+        <summary>Model</summary>
+        <div class="side-block-body">
+          <div class="model-picker" id="model-picker" role="radiogroup" aria-label="Select model"></div>
+        </div>
+      </details>
       <details class="side-block" id="system-block" open>
         <summary>System prompt</summary>
         <div class="side-block-body">
@@ -555,7 +622,7 @@
           </div>
         </div>
       </details>
-      <details class="side-block" id="storage-block" open>
+      <details class="side-block" id="storage-block">
         <summary>Model storage</summary>
         <div class="side-block-body">
           <div class="field-group" id="storage-group">
@@ -566,20 +633,9 @@
           </div>
         </div>
       </details>
-      <details class="side-block" id="credits-block">
-        <summary>Credits</summary>
-        <div class="side-block-body">
-          <div id="credits-body">
-            Credit goes to the creator of Transformers.js, Joshua Lochner, who developed the technology that makes this demo possible.
-            Follow him on
-            <a href="https://github.com/Xenova" target="_blank" rel="noopener noreferrer">GitHub</a>
-            and
-            <a href="https://x.com/xenovacom" target="_blank" rel="noopener noreferrer">X</a>.
-          </div>
-        </div>
-      </details>
     </div>
     <div class="sidebar-footer">
+      <button type="button" class="credits-btn" id="credits-btn">Credits</button>
       <div class="version-badge" id="app-version" aria-label="App version"></div>
     </div>
   </aside>
@@ -641,6 +697,22 @@
 <div id="webgpu-banner"></div>
 <div id="toast-stack" aria-live="polite"></div>
 
+<dialog id="credits-dialog" class="credits-dialog" aria-labelledby="credits-dialog-title">
+  <div class="credits-dialog-inner">
+    <div class="credits-dialog-header">
+      <h2 id="credits-dialog-title">Credits</h2>
+      <button type="button" class="credits-dialog-close" id="credits-dialog-close" aria-label="Close"></button>
+    </div>
+    <div id="credits-body">
+      Credit goes to the creator of Transformers.js, Joshua Lochner, who developed the technology that makes this demo possible.
+      Follow him on
+      <a href="https://github.com/Xenova" target="_blank" rel="noopener noreferrer">GitHub</a>
+      and
+      <a href="https://x.com/xenovacom" target="_blank" rel="noopener noreferrer">X</a>.
+    </div>
+  </div>
+</dialog>
+
 <script>
 "use strict";
 
@@ -650,13 +722,82 @@ const STORE = "sessions";
 const PREFS_KEY = "gemma4-chat:prefs";
 const THEME_KEY = "gemma4-chat:theme";
 
-const MODEL_ID = "google/gemma-4-E2B-it-qat-mobile-transformers";
-const MODEL_REVISION = "65707b8733090dda89f84735f1a1452e7b025f86";
-const MODEL_CACHE_NAME = "gemma4-chat-model-v1";
-const MODEL_META_URL = `https://huggingface.co/${MODEL_ID}/resolve/${MODEL_REVISION}/model.safetensors`;
+const GEMMA_REVISION = "65707b8733090dda89f84735f1a1452e7b025f86";
+const GEMMA_HUB_ID = "google/gemma-4-E2B-it-qat-mobile-transformers";
+
+const MODELS = {
+  gemma4: {
+    id: "gemma4",
+    name: "Gemma 4 E2B",
+    subtitle: "Google · ~2.5 GB · thinking",
+    runtime: "gemma",
+    hubId: GEMMA_HUB_ID,
+    revision: GEMMA_REVISION,
+    cacheName: "gemma4-chat-model-v1",
+    cacheType: "safetensors",
+    metaUrl: `https://huggingface.co/${GEMMA_HUB_ID}/resolve/${GEMMA_REVISION}/model.safetensors`,
+    downloadHint: "~2.5 GB",
+    declaredBytes: 2_458_111_846,
+    supportsThinking: true,
+  },
+  lfm2: {
+    id: "lfm2",
+    name: "LFM2.5 230M",
+    subtitle: "Liquid AI · ~150 MB · fastest",
+    runtime: "lfm2",
+    hubId: "LiquidAI/LFM2.5-230M-GGUF",
+    revision: "main",
+    cacheName: "webllm-lfm2-v1",
+    cacheType: "gguf",
+    downloadHint: "~150 MB",
+    declaredBytes: 153_000_000,
+    supportsThinking: false,
+  },
+  lfm2_350: {
+    id: "lfm2_350",
+    name: "LFM2.5 350M",
+    subtitle: "Liquid AI · ~220 MB · balanced",
+    runtime: "lfm2",
+    hubId: "LiquidAI/LFM2.5-350M-GGUF",
+    revision: "main",
+    cacheName: "webllm-lfm2-350m-v1",
+    cacheType: "gguf",
+    downloadHint: "~220 MB",
+    declaredBytes: 219_000_000,
+    supportsThinking: false,
+  },
+};
 
 const ASSISTANT_LABEL = "Assistant";
-const APP_VERSION = "0.0.1";
+const APP_VERSION = "0.0.4";
+const DEFAULT_MODEL_ID = "gemma4";
+
+function activeModelDef() {
+  return MODELS[state.selectedModelId] || MODELS[DEFAULT_MODEL_ID];
+}
+
+function loadedModelDef() {
+  return state.loadedModelId ? MODELS[state.loadedModelId] : null;
+}
+
+function sessionModelId(session) {
+  return session?.modelId && MODELS[session.modelId] ? session.modelId : null;
+}
+
+function resolveModelIdForSession(session) {
+  return sessionModelId(session) || (MODELS[state.selectedModelId] ? state.selectedModelId : DEFAULT_MODEL_ID);
+}
+
+function modelLabel(modelId) {
+  return MODELS[modelId]?.name || MODELS[DEFAULT_MODEL_ID].name;
+}
+
+async function patchSessionFields(session, fields) {
+  Object.assign(session, fields);
+  await dbPut(session);
+  const idx = state.sessions.findIndex(s => s.id === session.id);
+  if (idx >= 0) state.sessions[idx] = session;
+}
 
 const ICONS = {
   webllm: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.75 8 7.25 12l2.5 4"/><path d="M14.25 8 16.75 12l-2.5 4"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 5.75v1.5M12 16.75v1.5"/></svg>',
@@ -711,6 +852,9 @@ const state = {
   modelCached: false,
   webgpuLabel: "",
   modelLoadSecs: null,
+  selectedModelId: DEFAULT_MODEL_ID,
+  loadedModelId: null,
+  lfm2Runtime: null,
 };
 
 const $ = id => document.getElementById(id);
@@ -796,7 +940,11 @@ async function persistSession(session) {
 }
 
 async function createSession(title = "New chat") {
-  const session = { id: uid(), title, systemPrompt: "", messages: [], createdAt: Date.now(), updatedAt: Date.now() };
+  const modelId = MODELS[state.selectedModelId] ? state.selectedModelId : DEFAULT_MODEL_ID;
+  const session = {
+    id: uid(), title, systemPrompt: "", messages: [],
+    modelId, createdAt: Date.now(), updatedAt: Date.now(),
+  };
   await persistSession(session);
   state.activeSessionId = session.id;
   savePrefs();
@@ -828,16 +976,18 @@ function savePrefs() {
   try {
     localStorage.setItem(PREFS_KEY, JSON.stringify({
       activeSessionId: state.activeSessionId,
+      selectedModelId: state.selectedModelId,
       grammarMode: state.grammarMode,
       maxNewTokens: state.maxNewTokens,
       grammarJsonSchema: $("grammar-json-schema")?.value || "",
       grammarEbnf: $("grammar-custom")?.value || "",
       sessionSearch: state.sessionSearch,
       sidebarOpen: {
+        conversations: $("conversations-block")?.open,
         system: $("system-block")?.open,
+        model: $("model-block")?.open,
         settings: $("settings-block")?.open,
         storage: $("storage-block")?.open,
-        credits: $("credits-block")?.open,
       },
     }));
   } catch { /* ignore */ }
@@ -848,15 +998,17 @@ function loadPrefs() {
     const p = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
     if (p.activeSessionId) state.activeSessionId = p.activeSessionId;
     if (p.grammarMode) state.grammarMode = p.grammarMode;
+    if (MODELS[p.selectedModelId]) state.selectedModelId = p.selectedModelId;
     if (typeof p.maxNewTokens === "number") state.maxNewTokens = p.maxNewTokens;
     if (p.grammarJsonSchema) $("grammar-json-schema").value = p.grammarJsonSchema;
     if (p.grammarEbnf) $("grammar-custom").value = p.grammarEbnf;
     if (p.sessionSearch) { state.sessionSearch = p.sessionSearch; $("session-search").value = p.sessionSearch; }
     if (p.sidebarOpen) {
+      if (typeof p.sidebarOpen.conversations === "boolean") $("conversations-block").open = p.sidebarOpen.conversations;
       if (typeof p.sidebarOpen.system === "boolean") $("system-block").open = p.sidebarOpen.system;
+      if (typeof p.sidebarOpen.model === "boolean") $("model-block").open = p.sidebarOpen.model;
       if (typeof p.sidebarOpen.settings === "boolean") $("settings-block").open = p.sidebarOpen.settings;
       if (typeof p.sidebarOpen.storage === "boolean") $("storage-block").open = p.sidebarOpen.storage;
-      if (typeof p.sidebarOpen.credits === "boolean") $("credits-block").open = p.sidebarOpen.credits;
     }
   } catch { /* ignore */ }
 }
@@ -1032,18 +1184,18 @@ async function requestPersistentStorage() {
   try { return await navigator.storage.persist(); } catch { return false; }
 }
 
-async function readModelCacheMeta() {
-  if (!("indexedDB" in window) || state.fileOrigin) return null;
+async function readModelCacheMeta(def) {
+  if (!def || def.cacheType !== "safetensors" || !("indexedDB" in window) || state.fileOrigin) return null;
   try {
     return await new Promise(resolve => {
-      const req = indexedDB.open(MODEL_CACHE_NAME);
+      const req = indexedDB.open(def.cacheName);
       req.onupgradeneeded = () => { req.result.close(); resolve(null); };
       req.onerror = () => resolve(null);
       req.onsuccess = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains("meta")) { db.close(); resolve(null); return; }
         const tx = db.transaction("meta", "readonly");
-        const getReq = tx.objectStore("meta").get(MODEL_META_URL);
+        const getReq = tx.objectStore("meta").get(def.metaUrl);
         getReq.onsuccess = () => { resolve(getReq.result ?? null); db.close(); };
         getReq.onerror = () => { resolve(null); db.close(); };
       };
@@ -1051,11 +1203,11 @@ async function readModelCacheMeta() {
   } catch { return null; }
 }
 
-async function sumIndexedDbChunkBytes() {
-  if (!("indexedDB" in window) || state.fileOrigin) return 0;
+async function sumIndexedDbChunkBytes(def) {
+  if (!def || def.cacheType !== "safetensors" || !("indexedDB" in window) || state.fileOrigin) return 0;
   try {
     return await new Promise(resolve => {
-      const req = indexedDB.open(MODEL_CACHE_NAME);
+      const req = indexedDB.open(def.cacheName);
       req.onupgradeneeded = () => { req.result.close(); resolve(0); };
       req.onerror = () => resolve(0);
       req.onsuccess = () => {
@@ -1078,10 +1230,10 @@ async function sumIndexedDbChunkBytes() {
   } catch { return 0; }
 }
 
-async function sumCacheStorageBytes() {
-  if (!("caches" in window) || state.fileOrigin) return 0;
+async function sumCacheStorageBytes(cacheName) {
+  if (!("caches" in window) || state.fileOrigin || !cacheName) return 0;
   try {
-    const cache = await caches.open(MODEL_CACHE_NAME);
+    const cache = await caches.open(cacheName);
     const keys = await cache.keys();
     let total = 0;
     for (const req of keys) {
@@ -1092,43 +1244,79 @@ async function sumCacheStorageBytes() {
   } catch { return 0; }
 }
 
-/** Bytes actually stored for the model cache (IDB weight chunks + Cache Storage config). */
-async function getModelCacheSize() {
+async function getModelCacheSize(def) {
+  if (!def) return { stored: 0, declared: null };
+  if (def.cacheType === "gguf") {
+    const [mainBytes, headerBytes] = await Promise.all([
+      sumCacheStorageBytes(def.cacheName),
+      sumCacheStorageBytes(`${def.cacheName}-headers`),
+    ]);
+    const stored = mainBytes + headerBytes;
+    return { stored, declared: def.declaredBytes ?? null };
+  }
   const [meta, chunkBytes, configBytes] = await Promise.all([
-    readModelCacheMeta(),
-    sumIndexedDbChunkBytes(),
-    sumCacheStorageBytes(),
+    readModelCacheMeta(def),
+    sumIndexedDbChunkBytes(def),
+    sumCacheStorageBytes(def.cacheName),
   ]);
   const stored = chunkBytes + configBytes;
-  const declared = meta?.size && Number.isFinite(meta.size) ? meta.size : null;
+  const declared = meta?.size && Number.isFinite(meta.size) ? meta.size : (def.declaredBytes ?? null);
   return { stored, declared };
 }
 
-async function checkModelCached() {
-  if (!("indexedDB" in window) || state.fileOrigin) return false;
+async function getAllModelsCacheStats() {
+  const entries = await Promise.all(
+    Object.values(MODELS).map(async def => {
+      const cached = await checkModelCached(def);
+      if (!cached) return null;
+      const size = await getModelCacheSize(def);
+      return { def, ...size };
+    })
+  );
+  const cached = entries.filter(Boolean);
+  const stored = cached.reduce((sum, entry) => sum + entry.stored, 0);
+  const declared = cached.reduce((sum, entry) => sum + (entry.declared ?? 0), 0);
+  return {
+    modelCount: cached.length,
+    stored,
+    declared: declared > 0 ? declared : null,
+    cachedModels: cached.map(entry => entry.def),
+  };
+}
+
+async function ggufCacheHasModel(def) {
+  if (!("caches" in window) || !def) return false;
+  const hints = [def.hubId, ...def.hubId.split("/")].filter(Boolean);
+  for (const name of [def.cacheName, `${def.cacheName}-headers`]) {
+    try {
+      const cache = await caches.open(name);
+      const keys = await cache.keys();
+      if (keys.some(k => hints.some(h => k.url.includes(h)))) return true;
+    } catch { /* ignore */ }
+  }
+  return false;
+}
+
+async function checkModelCached(def = activeModelDef()) {
+  if (!def || state.fileOrigin) return false;
+  if (def.cacheType === "gguf") {
+    return ggufCacheHasModel(def);
+  }
+  if (!("indexedDB" in window)) return false;
   try {
-    // Never open with an explicit version — that can create an empty v2 DB on first visit
-    // and prevent the runtime from creating the chunks/meta stores (cache silently breaks).
     if (indexedDB.databases) {
       const dbs = await indexedDB.databases();
-      if (!dbs.some(d => d.name === MODEL_CACHE_NAME)) return false;
+      if (!dbs.some(d => d.name === def.cacheName)) return false;
     }
     return await new Promise(resolve => {
-      const req = indexedDB.open(MODEL_CACHE_NAME);
-      req.onupgradeneeded = () => {
-        req.result.close();
-        resolve(false);
-      };
+      const req = indexedDB.open(def.cacheName);
+      req.onupgradeneeded = () => { req.result.close(); resolve(false); };
       req.onerror = () => resolve(false);
       req.onsuccess = () => {
         const db = req.result;
-        if (!db.objectStoreNames.contains("meta")) {
-          db.close();
-          resolve(false);
-          return;
-        }
+        if (!db.objectStoreNames.contains("meta")) { db.close(); resolve(false); return; }
         const tx = db.transaction("meta", "readonly");
-        const getReq = tx.objectStore("meta").get(MODEL_META_URL);
+        const getReq = tx.objectStore("meta").get(def.metaUrl);
         getReq.onsuccess = () => { resolve(!!getReq.result); db.close(); };
         getReq.onerror = () => { resolve(false); db.close(); };
       };
@@ -1137,14 +1325,15 @@ async function checkModelCached() {
 }
 
 async function repairBrokenModelCache() {
+  const def = MODELS.gemma4;
   if (state.fileOrigin || !("indexedDB" in window)) return;
   try {
     if (indexedDB.databases) {
       const dbs = await indexedDB.databases();
-      if (!dbs.some(d => d.name === MODEL_CACHE_NAME)) return;
+      if (!dbs.some(d => d.name === def.cacheName)) return;
     }
     const schemaOk = await new Promise(resolve => {
-      const req = indexedDB.open(MODEL_CACHE_NAME);
+      const req = indexedDB.open(def.cacheName);
       req.onupgradeneeded = () => { req.result.close(); resolve(false); };
       req.onerror = () => resolve(false);
       req.onsuccess = () => {
@@ -1155,22 +1344,30 @@ async function repairBrokenModelCache() {
       };
     });
     if (!schemaOk) {
-      await deleteModelCacheDatabases().catch(() => {});
+      await deleteModelCacheDatabases(def).catch(() => {});
       console.warn("Removed incomplete model cache database (missing object stores).");
     }
   } catch { /* ignore */ }
 }
 
-function deleteModelCacheDatabases() {
-  return Promise.all([
-    new Promise((resolve, reject) => {
-      const req = indexedDB.deleteDatabase(MODEL_CACHE_NAME);
+function deleteModelCacheDatabases(def) {
+  if (!def) return Promise.resolve();
+  const ops = [caches.delete(def.cacheName)];
+  if (def.cacheType === "gguf") {
+    ops.push(caches.delete(`${def.cacheName}-headers`));
+  } else if ("indexedDB" in window) {
+    ops.push(new Promise((resolve, reject) => {
+      const req = indexedDB.deleteDatabase(def.cacheName);
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
       req.onblocked = () => reject(new Error("Cache database is in use — refresh the page, then try again."));
-    }),
-    caches.delete(MODEL_CACHE_NAME),
-  ]);
+    }));
+  }
+  return Promise.all(ops);
+}
+
+async function deleteAllModelCacheDatabases() {
+  await Promise.all(Object.values(MODELS).map(def => deleteModelCacheDatabases(def)));
 }
 
 async function clearModelCache() {
@@ -1178,16 +1375,19 @@ async function clearModelCache() {
     toast("Wait until the model finishes loading.");
     return false;
   }
+  const hadLoadedModel = !!state.model;
   try {
-    await deleteModelCacheDatabases();
+    await deleteAllModelCacheDatabases();
   } catch (err) {
     toast(err?.message || "Could not clear model cache");
     return false;
   }
-  state.modelCached = false;
+  state.modelCached = await checkModelCached(activeModelDef());
   await refreshStorageUI();
-  toast("Model cache cleared.");
-  if (state.model) toast("Refresh the page before loading again for a clean re-download.");
+  toast("All model caches cleared.");
+  if (hadLoadedModel) {
+    toast("Refresh the page before loading again for a clean re-download.");
+  }
   return true;
 }
 
@@ -1195,55 +1395,155 @@ function updateStorageButtons() {
   const clearBtn = $("clear-model-cache-btn");
   if (!clearBtn) return;
   const busy = state.loading || state.busy;
-  const cacheCapable = !state.fileOrigin && "indexedDB" in window && "caches" in window;
+  const cacheCapable = !state.fileOrigin && "caches" in window
+    && Object.values(MODELS).some(def => def.cacheType !== "gguf" ? "indexedDB" in window : true);
   clearBtn.disabled = !cacheCapable || busy;
   clearBtn.title = state.fileOrigin
     ? "Caching unavailable on file://"
-    : (!cacheCapable ? "Caching not supported in this browser context" : "");
+    : (!cacheCapable ? "Caching not supported in this browser context" : "Clear cached weights for all models");
 }
 
-function formatCacheStatus({ stored, declared }) {
+function formatAllModelsCacheStatus({ stored, declared, modelCount }) {
+  if (modelCount === 0) return "No models cached yet";
+  const modelLabel = modelCount === 1 ? "1 model" : `${modelCount} models`;
   if (stored > 0) {
     if (declared && stored < declared * 0.9) {
-      return `Cached · ~${fmtBytes(stored)} of ~${fmtBytes(declared)} weights`;
+      return `Cached · ~${fmtBytes(stored)} from ${modelLabel} (~${fmtBytes(declared)} total)`;
     }
-    return `Cached · ~${fmtBytes(stored)} model weights`;
+    return `Cached · ~${fmtBytes(stored)} from ${modelLabel}`;
   }
-  if (declared) return `Cached · ~${fmtBytes(declared)} model file`;
-  return "Model cached · loads in seconds";
+  return `Cached · ${modelLabel}`;
 }
 
 function updateEmptyCacheHint() {
   const hint = $("empty-cache-hint");
   if (!hint) return;
+  const def = activeModelDef();
   if (state.fileOrigin) {
     hint.textContent = "";
     return;
   }
   if (state.modelCached) {
-    hint.textContent = "Model cached locally · loads in seconds.";
-  } else if (!state.fileOrigin) {
-    hint.textContent = "First load downloads ~2.46 GB (one-time).";
+    hint.textContent = `${def.name} cached locally · loads in seconds.`;
   } else {
-    hint.textContent = "";
+    hint.textContent = `First load downloads ${def.downloadHint} (one-time).`;
   }
 }
 
+async function ensureRuntime(def = activeModelDef()) {
+  if (!def) return false;
+  if (def.runtime === "gemma") return typeof globalThis.Gemma4Mobile === "function";
+  if (!state.lfm2Runtime) {
+    try {
+      const mod = await import("./lfm2_5.js");
+      state.lfm2Runtime = mod.Lfm2Mobile;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  }
+  return !!state.lfm2Runtime;
+}
+
+async function unloadModel() {
+  if (state.busy || state.loading) return false;
+  if (!state.model) {
+    state.loadedModelId = null;
+    return true;
+  }
+  try {
+    if (typeof state.model.reset === "function") await state.model.reset();
+    if (typeof state.model.dispose === "function") await state.model.dispose();
+  } catch { /* ignore */ }
+  state.model = null;
+  state.loadedModelId = null;
+  state.modelLoadSecs = null;
+  restoreIdleStatus();
+  updateComposerState();
+  renderModelPicker();
+  return true;
+}
+
+function renderModelPicker() {
+  const picker = $("model-picker");
+  if (!picker) return;
+  const busy = state.loading || state.busy;
+  picker.innerHTML = Object.values(MODELS).map(def => {
+    const active = def.id === state.selectedModelId;
+    const loaded = state.loadedModelId === def.id && !!state.model;
+    return `
+      <label class="model-option${active ? " active" : ""}${busy ? " disabled" : ""}">
+        <input type="radio" name="model-id" value="${esc(def.id)}"${active ? " checked" : ""}${busy ? " disabled" : ""}>
+        <span class="model-option-name">${esc(def.name)}</span>
+        <span class="model-option-meta">${esc(def.subtitle)}</span>
+        ${loaded ? '<span class="model-option-badge">Loaded</span>' : ""}
+      </label>`;
+  }).join("");
+  picker.querySelectorAll('input[name="model-id"]').forEach(input => {
+    input.addEventListener("change", () => {
+      if (input.checked) selectModel(input.value);
+    });
+  });
+}
+
+async function applyModelSelection(modelId, { silent = false, persistToSession = true } = {}) {
+  if (!MODELS[modelId]) modelId = DEFAULT_MODEL_ID;
+  const needsUnload = state.model && state.loadedModelId && state.loadedModelId !== modelId;
+  if (modelId === state.selectedModelId && !needsUnload) {
+    renderModelPicker();
+    return;
+  }
+  if (state.busy || state.loading) {
+    if (!silent) {
+      toast("Can't switch models while loading or generating.");
+      renderModelPicker();
+    }
+    return;
+  }
+  if (state.model && state.loadedModelId && state.loadedModelId !== modelId) {
+    await unloadModel();
+    if (!silent) toast(`Switched to ${MODELS[modelId].name}. Load the model when ready.`);
+  }
+  state.selectedModelId = modelId;
+  if (persistToSession) {
+    const session = activeSession();
+    if (session && session.modelId !== modelId) {
+      await patchSessionFields(session, { modelId });
+      renderSessionList();
+    }
+  }
+  savePrefs();
+  renderModelPicker();
+  await refreshStorageUI();
+  updateEmptyCacheHint();
+}
+
+async function selectModel(modelId) {
+  await applyModelSelection(modelId, { silent: false, persistToSession: true });
+}
+
+function syncModelFromSession(session = activeSession()) {
+  if (!session) return;
+  state.selectedModelId = resolveModelIdForSession(session);
+  renderModelPicker();
+}
+
 async function refreshStorageUI() {
-  state.modelCached = await checkModelCached();
+  const def = activeModelDef();
+  state.modelCached = await checkModelCached(def);
   const statusText = $("storage-status-text");
   if (statusText) {
     if (state.fileOrigin) {
       statusText.hidden = true;
     } else {
       statusText.hidden = false;
-      if (!("indexedDB" in window) || !("caches" in window)) {
+      const cacheOk = "caches" in window
+        && Object.values(MODELS).some(m => m.cacheType !== "gguf" ? "indexedDB" in window : true);
+      if (!cacheOk) {
         statusText.textContent = "Caching not available";
-      } else if (state.modelCached) {
-        const size = await getModelCacheSize();
-        statusText.textContent = formatCacheStatus(size);
       } else {
-        statusText.textContent = "Not cached yet";
+        const stats = await getAllModelsCacheStats();
+        statusText.textContent = formatAllModelsCacheStatus(stats);
       }
     }
   }
@@ -1282,6 +1582,21 @@ function onLoadProgress(event) {
     return;
   }
   const frac = Number.isFinite(event.fraction) ? Math.min(1, Math.max(0, event.fraction)) : null;
+  const def = activeModelDef();
+  if (def.cacheType === "gguf") {
+    setProgressTarget(0.05 + 0.90 * (frac ?? 0));
+    let label = "Preparing GPU weights…";
+    if (event.kind === "bytes") {
+      const verb = event.fromCache ? "Loading cached weights" : "Downloading weights";
+      const lr = event.loaded != null && event.total != null ? ` ${fmtBytes(event.loaded)}/${fmtBytes(event.total)}` : "";
+      label = `${verb}${lr}${frac != null ? ` · ${Math.round(frac * 100)}%` : ""}`;
+    } else if (frac != null) {
+      label = `Preparing GPU weights · ${Math.round(frac * 100)}%`;
+    }
+    state.progress.label = label;
+    setModelStatus("loading", label);
+    return;
+  }
   if (event.kind !== "tensors") setProgressTarget(0.05 + 0.95 * (frac ?? 0));
   let label = "Preparing GPU weights…";
   if (event.kind === "bytes") {
@@ -1346,13 +1661,15 @@ function updateComposerState() {
 
 async function loadModel() {
   if (state.model || state.loading || !state.webgpuOk) return;
-  if (typeof globalThis.Gemma4Mobile !== "function") {
+  const def = activeModelDef();
+  if (!(await ensureRuntime(def))) {
     setModelStatus("error", "Runtime missing");
     toast("Model runtime could not be loaded");
     return;
   }
   state.loading = true;
   updateComposerState();
+  renderModelPicker();
   $("load-bar-wrap").classList.add("show");
   setProgressImmediate(0.02, "Requesting WebGPU…");
   setModelStatus("loading", "Requesting WebGPU…");
@@ -1360,35 +1677,42 @@ async function loadModel() {
   try {
     const loadOpts = {
       onProgress: onLoadProgress,
-      revision: MODEL_REVISION,
-      cacheName: MODEL_CACHE_NAME,
+      cacheName: def.cacheName,
+      revision: def.revision,
     };
     if (state.fileOrigin) loadOpts.cache = false;
-    state.model = await globalThis.Gemma4Mobile.load(null, loadOpts);
+    if (def.runtime === "gemma") {
+      state.model = await globalThis.Gemma4Mobile.load(null, loadOpts);
+    } else {
+      state.model = await state.lfm2Runtime.load(def.hubId, loadOpts);
+    }
     setModelStatus("loading", "Warming up…");
     state.progress.label = "Warming up…";
     setProgressTarget(0.99);
     await state.model.warmup();
     setProgressImmediate(1, "Model ready");
     state.modelLoadSecs = ((performance.now() - started) / 1000).toFixed(1);
+    state.loadedModelId = def.id;
     restoreIdleStatus();
     setTimeout(() => $("load-bar-wrap").classList.remove("show"), 500);
     requestPersistentStorage();
-    const cachedAfterLoad = await checkModelCached();
-    state.modelCached = cachedAfterLoad;
-    if (!cachedAfterLoad && !state.fileOrigin) {
+    state.modelCached = await checkModelCached(def);
+    if (!state.modelCached && !state.fileOrigin) {
       toast("Model loaded, but couldn't be cached (browser may be low on storage). It will re-download next time.");
     }
     await refreshStorageUI();
+    renderModelPicker();
   } catch (err) {
     console.error(err);
     setModelStatus("error", `Failed · ${err?.message || err}`);
     toast(`Model failed to load: ${err?.message || err}`);
     state.model = null;
+    state.loadedModelId = null;
     state.modelLoadSecs = null;
   } finally {
     state.loading = false;
     updateComposerState();
+    renderModelPicker();
   }
 }
 
@@ -1589,8 +1913,14 @@ function buildAssistantMessage(msg, { streaming = false } = {}) {
   return wrap;
 }
 
+function modelSupportsThinking() {
+  const def = loadedModelDef() || activeModelDef();
+  return !!def?.supportsThinking;
+}
+
 function buildThinkingDisclosure(thinking, meta, { streaming = false, open = false } = {}) {
   if (!streaming && !thinking) return null;
+  if (streaming && !thinking && !modelSupportsThinking()) return null;
   const details = document.createElement("details");
   details.className = "think-disclosure";
   if (open) details.open = true;
@@ -1758,6 +2088,8 @@ function renderSessionList() {
   const list = $("session-list");
   const sessions = filteredSessions();
   $("session-search-wrap").classList.toggle("show", state.sessions.length > 8);
+  const countEl = $("conv-count");
+  if (countEl) countEl.textContent = state.sessions.length ? `(${state.sessions.length})` : "";
 
   if (!sessions.length) {
     list.innerHTML = `<div style="padding:8px 12px;font-size:12px;color:var(--text-muted)">${state.sessionSearch ? "No matches" : "No conversations"}</div>`;
@@ -1786,7 +2118,7 @@ function renderSessionList() {
               <button type="button" class="icon-btn danger" data-del="${esc(s.id)}" aria-label="Delete" title="Delete"></button>
             </div>
           </div>
-          <div class="session-meta">${s.messages.length} messages · ${formatTime(s.updatedAt)}</div>
+          <div class="session-meta">${esc(modelLabel(resolveModelIdForSession(s)))} · ${s.messages.length} messages · ${formatTime(s.updatedAt)}</div>
         </div>`;
     }).join("");
     return `<div class="session-group-label">${g}</div>${items}`;
@@ -1830,6 +2162,7 @@ function syncUIFromSession() {
   const session = activeSession();
   if (!session) return;
   $("system-prompt").value = session.systemPrompt || "";
+  syncModelFromSession(session);
   updateChatTitle();
   updateGrammarUI();
 }
@@ -1900,7 +2233,7 @@ function renderStreamFrame({ raw, tokCount, tps, ttft }) {
   const footer = msgEl.querySelector(".stream-footer");
   const stats = msgEl.querySelector(".msg-stats-inline");
 
-  if (thinking || !output) {
+  if ((thinking || !output) && modelSupportsThinking()) {
     if (!disclosure) {
       const card = msgEl.querySelector(".msg-card");
       const disc = buildThinkingDisclosure(thinking, null, { streaming: true, open: true });
@@ -2000,11 +2333,17 @@ $("chat-messages").addEventListener("click", async e => {
 /* ── Send ── */
 
 async function switchSession(id) {
+  if (id === state.activeSessionId) return;
+  const session = state.sessions.find(s => s.id === id);
+  if (!session) return;
   state.activeSessionId = id;
   savePrefs();
   renderSessionList();
   renderChat();
   syncUIFromSession();
+  const modelId = resolveModelIdForSession(session);
+  if (!session.modelId) await patchSessionFields(session, { modelId });
+  await applyModelSelection(modelId, { silent: true, persistToSession: false });
   if (state.model) try { state.model.reset(); } catch { /* ignore */ }
   $("sidebar").classList.remove("open");
 }
@@ -2017,6 +2356,7 @@ async function sendMessage() {
   if (!session) return;
 
   session.systemPrompt = $("system-prompt").value;
+  if (!session.modelId) session.modelId = state.selectedModelId;
   session.messages.push({ role: "user", content: text });
   if (session.messages.length === 1) session.title = text.slice(0, 50) + (text.length > 50 ? "…" : "");
   await persistSession(session);
@@ -2096,6 +2436,7 @@ function initStaticIcons() {
   setIcon($("sidebar-toggle"), "menu");
   setIcon($("chat-title-edit"), "edit");
   setIcon($("send-btn"), "send");
+  setIcon($("credits-dialog-close"), "close");
   const newBtn = $("new-chat-btn");
   newBtn.append(icon("plus"), document.createTextNode(" New conversation"));
   const versionEl = $("app-version");
@@ -2128,6 +2469,10 @@ async function init() {
   renderSessionList();
   renderChat();
   syncUIFromSession();
+  const bootSession = activeSession();
+  if (bootSession && !sessionModelId(bootSession)) {
+    await patchSessionFields(bootSession, { modelId: state.selectedModelId });
+  }
   updateComposerState();
 
   if (state.fileOrigin) $("file-origin-note").hidden = false;
@@ -2184,9 +2529,15 @@ $("max-tokens").addEventListener("change", () => {
 
 $("clear-model-cache-btn").addEventListener("click", () => clearModelCache());
 
-for (const id of ["system-block", "settings-block", "storage-block", "credits-block"]) {
+for (const id of ["conversations-block", "model-block", "system-block", "settings-block", "storage-block"]) {
   $(id).addEventListener("toggle", savePrefs);
 }
+
+$("credits-btn").addEventListener("click", () => $("credits-dialog").showModal());
+$("credits-dialog-close").addEventListener("click", () => $("credits-dialog").close());
+$("credits-dialog").addEventListener("click", e => {
+  if (e.target === $("credits-dialog")) $("credits-dialog").close();
+});
 
 $("send-btn").addEventListener("click", sendMessage);
 $("stop-btn").addEventListener("click", () => { state.abort?.abort(); toast("Stopping…"); });
