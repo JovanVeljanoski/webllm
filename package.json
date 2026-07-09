@@ -1,0 +1,17 @@
+{
+  "name": "webllm",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "eslint": "^9.21.0",
+    "fake-indexeddb": "^6.0.0",
+    "globals": "^16.0.0",
+    "vitest": "^3.0.5"
+  }
+}

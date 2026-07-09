@@ -1,0 +1,42 @@
+import { describe, expect, it } from "vitest";
+import {
+  MODELS,
+  activeModelDef,
+  loadedModelDef,
+  modelLabel,
+  modelSupportsThinking,
+  resolveModelIdForSession,
+  sessionModelId,
+} from "../lib/models.js";
+import { DEFAULT_MODEL_ID } from "../lib/constants.js";
+
+describe("model registry", () => {
+  it("uses webllm-prefixed gemma cache name", () => {
+    expect(MODELS.gemma4.cacheName).toBe("webllm-gemma4-v1");
+  });
+
+  it("resolves active and loaded model defs", () => {
+    expect(activeModelDef("lfm2").id).toBe("lfm2");
+    expect(activeModelDef("missing").id).toBe(DEFAULT_MODEL_ID);
+    expect(loadedModelDef("lfm2_350")?.id).toBe("lfm2_350");
+    expect(loadedModelDef(null)).toBeNull();
+  });
+
+  it("resolves session model with fallback", () => {
+    const session = { modelId: "lfm2", messages: [] };
+    expect(sessionModelId(session)).toBe("lfm2");
+    expect(sessionModelId({ modelId: "bogus" })).toBeNull();
+    expect(resolveModelIdForSession(session, "gemma4")).toBe("lfm2");
+    expect(resolveModelIdForSession({ messages: [] }, "lfm2_350")).toBe("lfm2_350");
+    expect(resolveModelIdForSession({ messages: [] }, "bogus")).toBe(DEFAULT_MODEL_ID);
+  });
+
+  it("labels models and thinking support", () => {
+    expect(modelLabel("lfm2")).toBe("LFM2.5 230M");
+    expect(modelLabel("bogus")).toBe("Gemma 4 E2B");
+    expect(modelSupportsThinking("gemma4", "lfm2")).toBe(true);
+    expect(modelSupportsThinking("lfm2", "lfm2")).toBe(false);
+    expect(modelSupportsThinking(null, "gemma4")).toBe(true);
+    expect(modelSupportsThinking(null, "lfm2")).toBe(false);
+  });
+});
