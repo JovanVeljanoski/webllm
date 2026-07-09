@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gemma 4 Chat</title>
+<title>WebLLM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -85,10 +85,10 @@
   }
   .sidebar-brand { padding: 20px 18px 16px; display: flex; align-items: center; gap: 12px; }
   .brand-icon {
-    width: 38px; height: 38px; border-radius: 12px; background: var(--user-bg);
+    width: 38px; height: 38px; border-radius: 50%; background: var(--user-bg);
     display: grid; place-items: center; color: #fff; box-shadow: 0 8px 20px var(--accent-glow);
   }
-  .brand-icon .icon svg { width: 18px; height: 18px; stroke: #fff; }
+  .brand-icon .icon svg { width: 22px; height: 22px; stroke: currentColor; fill: none; }
   .brand-text h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.02em; }
   .brand-text p { margin: 2px 0 0; font-size: 11px; color: var(--text-muted); font-weight: 500; }
 
@@ -199,16 +199,6 @@
   #credits-body a { color: var(--accent); text-decoration: none; font-weight: 600; }
   #credits-body a:hover { text-decoration: underline; }
 
-  .sidebar-footer { flex: none; padding: 12px 14px; border-top: 1px solid var(--border); }
-  .theme-btn {
-    width: 100%; appearance: none; border: 1px solid var(--border); background: var(--surface-2);
-    color: var(--text-secondary); font-family: inherit; font-size: 12px; font-weight: 600;
-    padding: 8px 12px; border-radius: var(--radius-xs); cursor: pointer;
-    display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.12s;
-  }
-  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .theme-btn:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
-
   /* ── Main ── */
   #main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-chat); min-height: 0; }
   .topbar {
@@ -235,6 +225,15 @@
     border: 1px solid var(--accent); border-radius: 8px; padding: 4px 10px; background: var(--surface); color: var(--text);
   }
   .topbar-actions { display: flex; align-items: center; gap: 10px; }
+  .theme-toggle-btn {
+    flex: none; appearance: none; border: 1px solid var(--border); background: var(--surface);
+    border-radius: var(--radius-xs); width: 36px; height: 36px; cursor: pointer;
+    color: var(--text-secondary); display: grid; place-items: center;
+    transition: border-color 0.12s, color 0.12s, background 0.12s;
+  }
+  .theme-toggle-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .theme-toggle-btn:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+  .theme-toggle-btn .icon svg { width: 18px; height: 18px; }
 
   .status-chip {
     display: inline-flex; align-items: center; gap: 7px; max-width: 260px;
@@ -392,14 +391,14 @@
     text-align: center; padding: 60px 24px; color: var(--text-muted);
   }
   .empty-icon {
-    width: 64px; height: 64px; border-radius: 20px;
+    width: 64px; height: 64px; border-radius: 50%;
     border: 1.5px solid color-mix(in srgb, var(--accent) 30%, var(--border));
     background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface));
     color: var(--accent);
     display: grid; place-items: center; margin-bottom: 20px;
     box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
   }
-  .empty-icon .icon svg { width: 28px; height: 28px; stroke: var(--accent); }
+  .empty-icon .icon svg { width: 30px; height: 30px; stroke: currentColor; fill: none; }
   .empty-state h2 { margin: 0 0 8px; font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
   .empty-state p { margin: 0; max-width: 400px; font-size: 16px; line-height: 1.7; }
   .empty-state-loader { margin-top: 24px; width: 100%; max-width: 360px; }
@@ -494,8 +493,8 @@
     <div class="sidebar-brand">
       <div class="brand-icon" id="brand-icon"></div>
       <div class="brand-text">
-        <h1>Gemma 4 Chat</h1>
-        <p>Local · Private · WebGPU</p>
+        <h1>WebLLM</h1>
+        <p>Browser-native LLMs</p>
       </div>
     </div>
     <div class="sidebar-actions">
@@ -563,9 +562,6 @@
         </div>
       </details>
     </div>
-    <div class="sidebar-footer">
-      <button type="button" class="theme-btn" id="theme-toggle"><span id="theme-icon"></span> Theme</button>
-    </div>
   </aside>
 
   <div id="main">
@@ -581,6 +577,9 @@
           <span id="model-status-text">Not loaded</span>
         </div>
         <button type="button" class="btn" id="load-model-btn">Load model</button>
+        <button type="button" class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+          <span id="theme-icon"></span>
+        </button>
       </div>
     </div>
 
@@ -611,7 +610,7 @@
 
     <div id="composer-area">
       <div id="composer-shell">
-        <textarea id="user-input" rows="1" placeholder="Message Gemma 4…" disabled></textarea>
+        <textarea id="user-input" rows="1" placeholder="Send a message…" disabled></textarea>
         <button type="button" class="send-btn" id="send-btn" disabled title="Send"></button>
         <button type="button" class="stop-btn" id="stop-btn" style="display:none">Stop</button>
       </div>
@@ -636,7 +635,10 @@ const MODEL_REVISION = "65707b8733090dda89f84735f1a1452e7b025f86";
 const MODEL_CACHE_NAME = "gemma4-chat-model-v1";
 const MODEL_META_URL = `https://huggingface.co/${MODEL_ID}/resolve/${MODEL_REVISION}/model.safetensors`;
 
+const ASSISTANT_LABEL = "Assistant";
+
 const ICONS = {
+  webllm: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.75 8 7.25 12l2.5 4"/><path d="M14.25 8 16.75 12l-2.5 4"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 5.75v1.5M12 16.75v1.5"/></svg>',
   user: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M6 20v-1a6 6 0 0 1 12 0v1"/></svg>',
   spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z"/><path d="M5 3v4M3 5h4M19 17v4M17 19h4"/></svg>',
   menu: '<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
@@ -918,7 +920,7 @@ async function probeWebGPU() {
 
   if (state.webgpuBrowser === "firefox") {
     state.webgpuOk = false;
-    showWebGpuBanner("<strong>Firefox is not supported.</strong> This Gemma 4 runtime is known to fail in Firefox. Use Chrome, Edge, or Safari 18+.", "warn");
+    showWebGpuBanner("<strong>Firefox is not supported.</strong> This WebGPU runtime is known to fail in Firefox. Use Chrome, Edge, or Safari 18+.", "warn");
     state.webgpuChecking = false;
     setModelStatus("error", "Use Chrome / Safari");
     updateComposerState();
@@ -1537,7 +1539,7 @@ function buildAssistantMessage(msg, { streaming = false } = {}) {
   wrap.className = "msg assistant" + (streaming ? " streaming" : "");
   if (streaming) wrap.id = "streaming-msg";
 
-  const shell = createMsgShell("Gemma 4");
+  const shell = createMsgShell(ASSISTANT_LABEL);
   shell.inner.append(createAvatar("assistant"), shell.body);
 
   const thinking = msg?.thinking || "";
@@ -2068,8 +2070,8 @@ function autoResizeTextarea(el) {
 }
 
 function initStaticIcons() {
-  setIcon($("brand-icon"), "spark");
-  setIcon($("empty-icon"), "spark");
+  setIcon($("brand-icon"), "webllm");
+  setIcon($("empty-icon"), "webllm");
   setIcon($("sidebar-toggle"), "menu");
   setIcon($("chat-title-edit"), "edit");
   setIcon($("send-btn"), "send");

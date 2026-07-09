@@ -1,24 +1,24 @@
-# Gemma 4 Chat
+# WebLLM
 
-A private AI chat that runs **entirely in your browser** — no server, no API keys, no data leaving your device. This project is a demo and a starting point for local WebGPU inference with Google's Gemma 4 E2B model.
+A private AI chat that runs **entirely in your browser** — no server, no API keys, no data leaving your device. WebLLM is a demo and starting point for local WebGPU inference. The default model today is Gemma 4 E2B; the app is designed to support additional models over time.
 
 ## Credit
 
-This demo would not be possible without **Transformers.js** and the work of **Joshua Lochner** ([@xenovacom](https://x.com/xenovacom) · [GitHub](https://github.com/Xenova)), who pioneered running state-of-the-art ML models in the browser with WebGPU. This app is meant to showcase that stack, inspire local use cases, and point developers to his work — not to replace it.
+This demo would not be possible without **Transformers.js** and the work of **Joshua Lochner** ([@xenovacom](https://x.com/xenovacom) · [GitHub](https://github.com/Xenova)), who pioneered running state-of-the-art ML models in the browser with WebGPU. WebLLM is meant to showcase that stack, inspire local use cases, and promote his work — not to replace it.
 
 The runtime bundle (`gemma-4-e2b.js`) is built on the Hugging Face / Transformers.js ecosystem. Follow Joshua for updates on browser ML.
 
 ## What it does
 
-- Loads **Gemma 4 E2B** (~2.5 GB) over the network once, then caches weights in the browser
-- Runs inference locally via **WebGPU** (Chrome, Edge, Safari 18+)
+- Loads a local LLM (~2.5 GB for the default Gemma 4 weights) once, then caches in the browser
+- Runs inference via **WebGPU** (Chrome, Edge, Safari 18+)
 - Stores chat history in **IndexedDB** on your machine
 - Exports conversations as **OpenAI-style JSON** (`[{ "role", "content" }, …]`) for reuse elsewhere
 - Supports system prompts, optional grammar guidance, thinking traces, and dark mode
 
 ## Quick start
 
-**Requirements:** A browser with WebGPU (Chrome 113+, Edge 113+, Safari 18+). Firefox is not supported for this runtime.
+**Requirements:** A browser with WebGPU (Chrome 113+, Edge 113+, Safari 18+). Firefox is not supported for the current runtime.
 
 ### Local development
 
@@ -39,7 +39,7 @@ Push this repo and enable Pages (branch root or `/docs`). The app must be served
 | File | Purpose |
 |------|---------|
 | `index.html` | Full app — UI, chat logic, caching, export (single file, no build step) |
-| `gemma-4-e2b.js` | Vendored WebGPU runtime (`Gemma4Mobile.load`, generate, cache) |
+| `gemma-4-e2b.js` | Vendored WebGPU runtime for the default model (`Gemma4Mobile.load`, generate, cache) |
 
 There is no npm install or bundler. Deploy the two files as static assets.
 
@@ -51,7 +51,7 @@ There is no npm install or bundler. Deploy the two files as static assets.
 - **Two-tier cache** (handled inside the runtime, wired from `index.html`):
   - **Cache Storage** — tokenizer, config, small JSON assets
   - **IndexedDB** — safetensors weight chunks (~256 KB blobs, HTTP Range requests)
-- **Chat persistence** — separate IndexedDB database (`gemma4-chat`) for sessions; clearing model cache does not delete conversations.
+- **Chat persistence** — separate IndexedDB database for sessions; clearing model cache does not delete conversations.
 
 ### Key integration points in `index.html`
 
