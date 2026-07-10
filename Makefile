@@ -1,6 +1,6 @@
 NPM ?= npm
 
-.PHONY: list install lint test ci
+.PHONY: list install lint test ci run
 
 list:
 	@echo "Available targets:"
@@ -9,6 +9,7 @@ list:
 	@echo "  make lint    — run ESLint"
 	@echo "  make test    — run unit tests"
 	@echo "  make ci      — install, lint, and test (GitHub Actions parity)"
+	@echo "  make run     — run the development server via python (default port 8080)"
 
 install:
 	$(NPM) ci
@@ -21,4 +22,6 @@ test:
 
 ci: install lint test
 
-run: python3 -m http.server 8080
+run:
+	$(eval PORT ?= 8080)
+	python3 -m http.server $(PORT)
