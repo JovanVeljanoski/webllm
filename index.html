@@ -4,10 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WebLLM</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="gemma-4-e2b.js"></script>
 <style>
   :root {
     --bg: #f7f8fc;
@@ -633,7 +633,7 @@
       <details class="side-block" id="storage-block">
         <summary>Model storage</summary>
         <div class="side-block-body">
-          <div class="field-group" id="storage-group">
+          <div class="field-group">
             <p class="field-hint" id="storage-status-text">Checking…</p>
             <div class="storage-actions" id="storage-actions">
               <button type="button" class="btn" id="clear-model-cache-btn">Clear all model cache</button>
@@ -721,88 +721,116 @@
   </div>
 </dialog>
 
-<script>
+<script type="module">
+import {
+  PREFS_KEY,
+  THEME_KEY,
+  ASSISTANT_LABEL,
+  APP_VERSION,
+  DEFAULT_MODEL_ID,
+  BROWSER_LABELS,
+} from "./lib/constants.js";
+import {
+  MODELS,
+  activeModelDef as pickActiveModel,
+  loadedModelDef as pickLoadedModel,
+  sessionModelId,
+  resolveModelIdForSession,
+  modelLabel,
+  modelSupportsThinking as modelHasThinking,
+} from "./lib/models.js";
+import {
+  esc,
+  fmtBytes,
+  formatTime,
+  formatStreamStats,
+  thinkLabel,
+  statsLine,
+  sessionDownloadFilename,
+} from "./lib/format.js";
+import {
+  buildMessages as buildMessagesForModel,
+  exportSessionOpenAI,
+  splitThinking,
+} from "./lib/messages.js";
+import {
+  sessionDateGroup,
+  filterSessions,
+  upsertSessionInList,
+  createSessionRecord,
+  firstMessageTitle,
+  normalizeSessionTitle,
+  SESSION_GROUP_ORDER,
+  canSendToModel,
+} from "./lib/sessions.js";
+import { generationErrorFallback } from "./lib/generation.js";
+import { detectBrowser } from "./lib/browser.js";
+import { computeLoadProgress } from "./lib/progress.js";
+import {
+  loadButtonLabel,
+  formatAllModelsCacheStatus,
+  isCacheCapable,
+  clampMaxNewTokens,
+} from "./lib/ui-state.js";
+import { buildPrefsPayload, parsePrefsJson } from "./lib/prefs.js";
+import { openSessionDB, dbGetAll, dbPut, dbDelete } from "./lib/session-storage.js";
+import { createDebouncer } from "./lib/debounce.js";
+import {
+  createCacheEnv,
+  getAllModelsCacheStats,
+  checkModelCached as isModelCached,
+  repairBrokenModelCache,
+  deleteModelCacheDatabases,
+  deleteAllModelCaches,
+} from "./lib/cache.js";
+
 "use strict";
 
-const DB_NAME = "gemma4-chat";
-const DB_VERSION = 1;
-const STORE = "sessions";
-const PREFS_KEY = "gemma4-chat:prefs";
-const THEME_KEY = "gemma4-chat:theme";
-
-const GEMMA_REVISION = "65707b8733090dda89f84735f1a1452e7b025f86";
-const GEMMA_HUB_ID = "google/gemma-4-E2B-it-qat-mobile-transformers";
-
-const MODELS = {
-  gemma4: {
-    id: "gemma4",
-    name: "Gemma 4 E2B",
-    subtitle: "Google · ~2.5 GB · thinking",
-    runtime: "gemma",
-    hubId: GEMMA_HUB_ID,
-    revision: GEMMA_REVISION,
-    cacheName: "gemma4-chat-model-v1",
-    cacheType: "safetensors",
-    metaUrl: `https://huggingface.co/${GEMMA_HUB_ID}/resolve/${GEMMA_REVISION}/model.safetensors`,
-    downloadHint: "~2.5 GB",
-    declaredBytes: 2_458_111_846,
-    supportsThinking: true,
-  },
-  lfm2: {
-    id: "lfm2",
-    name: "LFM2.5 230M",
-    subtitle: "Liquid AI · ~150 MB · fastest",
-    runtime: "lfm2",
-    hubId: "LiquidAI/LFM2.5-230M-GGUF",
-    revision: "main",
-    cacheName: "webllm-lfm2-v1",
-    cacheType: "gguf",
-    downloadHint: "~150 MB",
-    declaredBytes: 153_000_000,
-    supportsThinking: false,
-  },
-  lfm2_350: {
-    id: "lfm2_350",
-    name: "LFM2.5 350M",
-    subtitle: "Liquid AI · ~220 MB · balanced",
-    runtime: "lfm2",
-    hubId: "LiquidAI/LFM2.5-350M-GGUF",
-    revision: "main",
-    cacheName: "webllm-lfm2-350m-v1",
-    cacheType: "gguf",
-    downloadHint: "~220 MB",
-    declaredBytes: 219_000_000,
-    supportsThinking: false,
-  },
-};
-
-const ASSISTANT_LABEL = "Assistant";
-const APP_VERSION = "0.0.4";
-const DEFAULT_MODEL_ID = "gemma4";
-
 function activeModelDef() {
-  return MODELS[state.selectedModelId] || MODELS[DEFAULT_MODEL_ID];
+  return pickActiveModel(state.selectedModelId);
 }
 
 function loadedModelDef() {
-  return state.loadedModelId ? MODELS[state.loadedModelId] : null;
+  return pickLoadedModel(state.loadedModelId);
 }
 
-function sessionModelId(session) {
-  return session?.modelId && MODELS[session.modelId] ? session.modelId : null;
+function modelSupportsThinking() {
+  return modelHasThinking(state.loadedModelId, state.selectedModelId);
 }
 
-function resolveModelIdForSession(session) {
-  return sessionModelId(session) || (MODELS[state.selectedModelId] ? state.selectedModelId : DEFAULT_MODEL_ID);
+function grammarConfig() {
+  return {
+    grammarMode: state.grammarMode,
+    jsonSchema: $("grammar-json-schema")?.value || "",
+    ebnf: $("grammar-custom")?.value || "",
+  };
 }
 
-function modelLabel(modelId) {
-  return MODELS[modelId]?.name || MODELS[DEFAULT_MODEL_ID].name;
+function buildMessages(session) {
+  return buildMessagesForModel(session, grammarConfig());
 }
+
+function cacheEnv() {
+  return createCacheEnv({ fileOrigin: state.fileOrigin });
+}
+
+async function checkModelCached(def = activeModelDef()) {
+  return isModelCached(def, cacheEnv());
+}
+
+async function getAllModelsCacheStatsLocal() {
+  return getAllModelsCacheStats(cacheEnv());
+}
+
+async function deleteAllModelCacheDatabases() {
+  return deleteAllModelCaches(cacheEnv());
+}
+
+/* ── IndexedDB ── */
 
 async function patchSessionFields(session, fields) {
   Object.assign(session, fields);
-  await dbPut(session);
+  await dbPut(state.db, session);
   const idx = state.sessions.findIndex(s => s.id === session.id);
   if (idx >= 0) state.sessions[idx] = session;
 }
@@ -862,6 +890,7 @@ const state = {
   modelLoadSecs: null,
   selectedModelId: DEFAULT_MODEL_ID,
   loadedModelId: null,
+  gemmaScriptPromise: null,
   lfm2Runtime: null,
 };
 
@@ -879,45 +908,8 @@ function toast(message, { duration = 3000 } = {}) {
 
 /* ── IndexedDB ── */
 
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: "id" }).createIndex("updatedAt", "updatedAt");
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function dbGetAll() {
-  return new Promise((resolve, reject) => {
-    const tx = state.db.transaction(STORE, "readonly");
-    const req = tx.objectStore(STORE).getAll();
-    req.onsuccess = () => resolve(req.result || []);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function dbPut(session) {
-  return new Promise((resolve, reject) => {
-    const tx = state.db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).put(session);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-function dbDelete(id) {
-  return new Promise((resolve, reject) => {
-    const tx = state.db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+async function openDB() {
+  return openSessionDB();
 }
 
 function uid() {
@@ -935,11 +927,8 @@ function isEmptyStateVisible() {
 
 async function persistSession(session) {
   session.updatedAt = Date.now();
-  await dbPut(session);
-  const idx = state.sessions.findIndex(s => s.id === session.id);
-  if (idx >= 0) state.sessions[idx] = session;
-  else state.sessions.unshift(session);
-  state.sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+  await dbPut(state.db, session);
+  state.sessions = upsertSessionInList(state.sessions, session);
   savePrefs();
   renderSessionList();
   updateChatTitle();
@@ -948,11 +937,12 @@ async function persistSession(session) {
 }
 
 async function createSession(title = "New chat") {
-  const modelId = MODELS[state.selectedModelId] ? state.selectedModelId : DEFAULT_MODEL_ID;
-  const session = {
-    id: uid(), title, systemPrompt: "", messages: [],
-    modelId, createdAt: Date.now(), updatedAt: Date.now(),
-  };
+  const session = createSessionRecord({
+    id: uid(),
+    title,
+    selectedModelId: state.selectedModelId,
+    models: MODELS,
+  });
   await persistSession(session);
   state.activeSessionId = session.id;
   savePrefs();
@@ -960,7 +950,7 @@ async function createSession(title = "New chat") {
 }
 
 async function deleteSession(id) {
-  await dbDelete(id);
+  await dbDelete(state.db, id);
   state.sessions = state.sessions.filter(s => s.id !== id);
   if (state.activeSessionId === id) {
     state.activeSessionId = state.sessions[0]?.id || null;
@@ -976,13 +966,13 @@ async function deleteSession(id) {
 async function renameSession(id, newTitle) {
   const session = state.sessions.find(s => s.id === id);
   if (!session) return;
-  session.title = (newTitle || "").trim() || "Untitled";
+  session.title = normalizeSessionTitle(newTitle);
   await persistSession(session);
 }
 
 function savePrefs() {
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({
+    localStorage.setItem(PREFS_KEY, JSON.stringify(buildPrefsPayload({
       activeSessionId: state.activeSessionId,
       selectedModelId: state.selectedModelId,
       grammarMode: state.grammarMode,
@@ -997,28 +987,26 @@ function savePrefs() {
         settings: $("settings-block")?.open,
         storage: $("storage-block")?.open,
       },
-    }));
+    })));
   } catch { /* ignore */ }
 }
 
 function loadPrefs() {
-  try {
-    const p = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
-    if (p.activeSessionId) state.activeSessionId = p.activeSessionId;
-    if (p.grammarMode) state.grammarMode = p.grammarMode;
-    if (MODELS[p.selectedModelId]) state.selectedModelId = p.selectedModelId;
-    if (typeof p.maxNewTokens === "number") state.maxNewTokens = p.maxNewTokens;
-    if (p.grammarJsonSchema) $("grammar-json-schema").value = p.grammarJsonSchema;
-    if (p.grammarEbnf) $("grammar-custom").value = p.grammarEbnf;
-    if (p.sessionSearch) { state.sessionSearch = p.sessionSearch; $("session-search").value = p.sessionSearch; }
-    if (p.sidebarOpen) {
-      if (typeof p.sidebarOpen.conversations === "boolean") $("conversations-block").open = p.sidebarOpen.conversations;
-      if (typeof p.sidebarOpen.system === "boolean") $("system-block").open = p.sidebarOpen.system;
-      if (typeof p.sidebarOpen.model === "boolean") $("model-block").open = p.sidebarOpen.model;
-      if (typeof p.sidebarOpen.settings === "boolean") $("settings-block").open = p.sidebarOpen.settings;
-      if (typeof p.sidebarOpen.storage === "boolean") $("storage-block").open = p.sidebarOpen.storage;
-    }
-  } catch { /* ignore */ }
+  const p = parsePrefsJson(localStorage.getItem(PREFS_KEY));
+  if (p.activeSessionId) state.activeSessionId = p.activeSessionId;
+  if (p.grammarMode) state.grammarMode = p.grammarMode;
+  if (MODELS[p.selectedModelId]) state.selectedModelId = p.selectedModelId;
+  if (typeof p.maxNewTokens === "number") state.maxNewTokens = p.maxNewTokens;
+  if (p.grammarJsonSchema) $("grammar-json-schema").value = p.grammarJsonSchema;
+  if (p.grammarEbnf) $("grammar-custom").value = p.grammarEbnf;
+  if (p.sessionSearch) { state.sessionSearch = p.sessionSearch; $("session-search").value = p.sessionSearch; }
+  if (p.sidebarOpen) {
+    if (typeof p.sidebarOpen.conversations === "boolean") $("conversations-block").open = p.sidebarOpen.conversations;
+    if (typeof p.sidebarOpen.system === "boolean") $("system-block").open = p.sidebarOpen.system;
+    if (typeof p.sidebarOpen.model === "boolean") $("model-block").open = p.sidebarOpen.model;
+    if (typeof p.sidebarOpen.settings === "boolean") $("settings-block").open = p.sidebarOpen.settings;
+    if (typeof p.sidebarOpen.storage === "boolean") $("storage-block").open = p.sidebarOpen.storage;
+  }
 }
 
 /* ── Theme ── */
@@ -1048,17 +1036,6 @@ function mountWebGpuBanner() {
 
 /* ── WebGPU ── */
 
-function detectBrowser() {
-  const ua = navigator.userAgent || "";
-  if (/Firefox\//i.test(ua)) return "firefox";
-  if (/Edg\//i.test(ua)) return "edge";
-  if (/Chrome\//i.test(ua) || /CriOS/i.test(ua)) return "chrome";
-  if (/Safari\//i.test(ua)) return "safari";
-  return "other";
-}
-
-const BROWSER_LABELS = { chrome: "Chrome", edge: "Edge", safari: "Safari", firefox: "Firefox", other: "this browser" };
-
 function showWebGpuBanner(html, level = "error") {
   if (state.okBannerTimer) { clearTimeout(state.okBannerTimer); state.okBannerTimer = null; }
   const banner = $("webgpu-banner");
@@ -1081,7 +1058,7 @@ function hideWebGpuBanner() {
 
 async function probeWebGPU() {
   state.webgpuChecking = true;
-  state.webgpuBrowser = detectBrowser();
+  state.webgpuBrowser = detectBrowser(navigator.userAgent);
   setModelStatus("loading", "Checking WebGPU…");
   updateComposerState();
 
@@ -1148,8 +1125,6 @@ async function probeWebGPU() {
 
 /* ── Model loading (P0-4) ── */
 
-const PHASE = { init: [0, 0.02], tokenizer: [0.02, 0.05], weights: [0.05, 1.0], ready: [1, 1] };
-
 function updateProgressUI(pct, label) {
   const w = (pct * 100).toFixed(1) + "%";
   $("load-bar").style.width = w;
@@ -1179,12 +1154,6 @@ function setProgressImmediate(v, label) {
   updateProgressUI(state.progress.shown, label);
 }
 
-function fmtBytes(b) {
-  const u = ["B", "KB", "MB", "GB"]; let v = b, i = 0;
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
-  return `${v.toFixed(i === 3 ? 2 : (v >= 10 || i === 0 ? 0 : 1))} ${u[i]}`;
-}
-
 /* ── Model cache (IndexedDB + Cache Storage via runtime) ── */
 
 async function requestPersistentStorage() {
@@ -1192,190 +1161,15 @@ async function requestPersistentStorage() {
   try { return await navigator.storage.persist(); } catch { return false; }
 }
 
-async function readModelCacheMeta(def) {
-  if (!def || def.cacheType !== "safetensors" || !("indexedDB" in window) || state.fileOrigin) return null;
-  try {
-    return await new Promise(resolve => {
-      const req = indexedDB.open(def.cacheName);
-      req.onupgradeneeded = () => { req.result.close(); resolve(null); };
-      req.onerror = () => resolve(null);
-      req.onsuccess = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains("meta")) { db.close(); resolve(null); return; }
-        const tx = db.transaction("meta", "readonly");
-        const getReq = tx.objectStore("meta").get(def.metaUrl);
-        getReq.onsuccess = () => { resolve(getReq.result ?? null); db.close(); };
-        getReq.onerror = () => { resolve(null); db.close(); };
-      };
-    });
-  } catch { return null; }
-}
-
-async function sumIndexedDbChunkBytes(def) {
-  if (!def || def.cacheType !== "safetensors" || !("indexedDB" in window) || state.fileOrigin) return 0;
-  try {
-    return await new Promise(resolve => {
-      const req = indexedDB.open(def.cacheName);
-      req.onupgradeneeded = () => { req.result.close(); resolve(0); };
-      req.onerror = () => resolve(0);
-      req.onsuccess = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains("chunks")) { db.close(); resolve(0); return; }
-        const tx = db.transaction("chunks", "readonly");
-        const cursorReq = tx.objectStore("chunks").openCursor();
-        let total = 0;
-        cursorReq.onsuccess = ev => {
-          const cursor = ev.target.result;
-          if (!cursor) { db.close(); resolve(total); return; }
-          const val = cursor.value;
-          if (val instanceof Blob) total += val.size;
-          else if (val?.byteLength) total += val.byteLength;
-          cursor.continue();
-        };
-        cursorReq.onerror = () => { db.close(); resolve(0); };
-      };
-    });
-  } catch { return 0; }
-}
-
-async function sumCacheStorageBytes(cacheName) {
-  if (!("caches" in window) || state.fileOrigin || !cacheName) return 0;
-  try {
-    const cache = await caches.open(cacheName);
-    const keys = await cache.keys();
-    let total = 0;
-    for (const req of keys) {
-      const res = await cache.match(req);
-      if (res) total += (await res.blob()).size;
-    }
-    return total;
-  } catch { return 0; }
-}
-
-async function getModelCacheSize(def) {
-  if (!def) return { stored: 0, declared: null };
-  if (def.cacheType === "gguf") {
-    const [mainBytes, headerBytes] = await Promise.all([
-      sumCacheStorageBytes(def.cacheName),
-      sumCacheStorageBytes(`${def.cacheName}-headers`),
-    ]);
-    const stored = mainBytes + headerBytes;
-    return { stored, declared: def.declaredBytes ?? null };
-  }
-  const [meta, chunkBytes, configBytes] = await Promise.all([
-    readModelCacheMeta(def),
-    sumIndexedDbChunkBytes(def),
-    sumCacheStorageBytes(def.cacheName),
-  ]);
-  const stored = chunkBytes + configBytes;
-  const declared = meta?.size && Number.isFinite(meta.size) ? meta.size : (def.declaredBytes ?? null);
-  return { stored, declared };
-}
-
-async function getAllModelsCacheStats() {
-  const entries = await Promise.all(
-    Object.values(MODELS).map(async def => {
-      const cached = await checkModelCached(def);
-      if (!cached) return null;
-      const size = await getModelCacheSize(def);
-      return { def, ...size };
-    })
+async function repairBrokenModelCacheLocal() {
+  const repaired = await repairBrokenModelCache(
+    MODELS.gemma4,
+    cacheEnv(),
+    def => deleteModelCacheDatabases(def, cacheEnv()).catch(() => {}),
   );
-  const cached = entries.filter(Boolean);
-  const stored = cached.reduce((sum, entry) => sum + entry.stored, 0);
-  const declared = cached.reduce((sum, entry) => sum + (entry.declared ?? 0), 0);
-  return {
-    modelCount: cached.length,
-    stored,
-    declared: declared > 0 ? declared : null,
-    cachedModels: cached.map(entry => entry.def),
-  };
-}
-
-async function ggufCacheHasModel(def) {
-  if (!("caches" in window) || !def) return false;
-  const hints = [def.hubId, ...def.hubId.split("/")].filter(Boolean);
-  for (const name of [def.cacheName, `${def.cacheName}-headers`]) {
-    try {
-      const cache = await caches.open(name);
-      const keys = await cache.keys();
-      if (keys.some(k => hints.some(h => k.url.includes(h)))) return true;
-    } catch { /* ignore */ }
+  if (repaired) {
+    console.warn("Removed incomplete model cache database (missing object stores).");
   }
-  return false;
-}
-
-async function checkModelCached(def = activeModelDef()) {
-  if (!def || state.fileOrigin) return false;
-  if (def.cacheType === "gguf") {
-    return ggufCacheHasModel(def);
-  }
-  if (!("indexedDB" in window)) return false;
-  try {
-    if (indexedDB.databases) {
-      const dbs = await indexedDB.databases();
-      if (!dbs.some(d => d.name === def.cacheName)) return false;
-    }
-    return await new Promise(resolve => {
-      const req = indexedDB.open(def.cacheName);
-      req.onupgradeneeded = () => { req.result.close(); resolve(false); };
-      req.onerror = () => resolve(false);
-      req.onsuccess = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains("meta")) { db.close(); resolve(false); return; }
-        const tx = db.transaction("meta", "readonly");
-        const getReq = tx.objectStore("meta").get(def.metaUrl);
-        getReq.onsuccess = () => { resolve(!!getReq.result); db.close(); };
-        getReq.onerror = () => { resolve(false); db.close(); };
-      };
-    });
-  } catch { return false; }
-}
-
-async function repairBrokenModelCache() {
-  const def = MODELS.gemma4;
-  if (state.fileOrigin || !("indexedDB" in window)) return;
-  try {
-    if (indexedDB.databases) {
-      const dbs = await indexedDB.databases();
-      if (!dbs.some(d => d.name === def.cacheName)) return;
-    }
-    const schemaOk = await new Promise(resolve => {
-      const req = indexedDB.open(def.cacheName);
-      req.onupgradeneeded = () => { req.result.close(); resolve(false); };
-      req.onerror = () => resolve(false);
-      req.onsuccess = () => {
-        const db = req.result;
-        const ok = db.objectStoreNames.contains("meta") && db.objectStoreNames.contains("chunks");
-        db.close();
-        resolve(ok);
-      };
-    });
-    if (!schemaOk) {
-      await deleteModelCacheDatabases(def).catch(() => {});
-      console.warn("Removed incomplete model cache database (missing object stores).");
-    }
-  } catch { /* ignore */ }
-}
-
-function deleteModelCacheDatabases(def) {
-  if (!def) return Promise.resolve();
-  const ops = [caches.delete(def.cacheName)];
-  if (def.cacheType === "gguf") {
-    ops.push(caches.delete(`${def.cacheName}-headers`));
-  } else if ("indexedDB" in window) {
-    ops.push(new Promise((resolve, reject) => {
-      const req = indexedDB.deleteDatabase(def.cacheName);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-      req.onblocked = () => reject(new Error("Cache database is in use — refresh the page, then try again."));
-    }));
-  }
-  return Promise.all(ops);
-}
-
-async function deleteAllModelCacheDatabases() {
-  await Promise.all(Object.values(MODELS).map(def => deleteModelCacheDatabases(def)));
 }
 
 async function clearModelCache() {
@@ -1384,6 +1178,7 @@ async function clearModelCache() {
     return false;
   }
   const hadLoadedModel = !!state.model;
+  if (hadLoadedModel) await unloadModel();
   try {
     await deleteAllModelCacheDatabases();
   } catch (err) {
@@ -1394,7 +1189,7 @@ async function clearModelCache() {
   await refreshStorageUI();
   toast("All model caches cleared.");
   if (hadLoadedModel) {
-    toast("Refresh the page before loading again for a clean re-download.");
+    toast("Model unloaded. Load again to re-download weights.");
   }
   return true;
 }
@@ -1403,24 +1198,16 @@ function updateStorageButtons() {
   const clearBtn = $("clear-model-cache-btn");
   if (!clearBtn) return;
   const busy = state.loading || state.busy;
-  const cacheCapable = !state.fileOrigin && "caches" in window
-    && Object.values(MODELS).some(def => def.cacheType !== "gguf" ? "indexedDB" in window : true);
+  const cacheCapable = isCacheCapable({
+    fileOrigin: state.fileOrigin,
+    caches: globalThis.caches,
+    indexedDB: globalThis.indexedDB,
+    models: MODELS,
+  });
   clearBtn.disabled = !cacheCapable || busy;
   clearBtn.title = state.fileOrigin
     ? "Caching unavailable on file://"
     : (!cacheCapable ? "Caching not supported in this browser context" : "Clear cached weights for all models");
-}
-
-function formatAllModelsCacheStatus({ stored, declared, modelCount }) {
-  if (modelCount === 0) return "No models cached yet";
-  const modelLabel = modelCount === 1 ? "1 model" : `${modelCount} models`;
-  if (stored > 0) {
-    if (declared && stored < declared * 0.9) {
-      return `Cached · ~${fmtBytes(stored)} from ${modelLabel} (~${fmtBytes(declared)} total)`;
-    }
-    return `Cached · ~${fmtBytes(stored)} from ${modelLabel}`;
-  }
-  return `Cached · ${modelLabel}`;
 }
 
 function updateEmptyCacheHint() {
@@ -1438,9 +1225,30 @@ function updateEmptyCacheHint() {
   }
 }
 
+async function ensureGemmaRuntime() {
+  if (typeof globalThis.Gemma4Mobile === "function") return true;
+  if (!state.gemmaScriptPromise) {
+    state.gemmaScriptPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "gemma-4-e2b.js";
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Failed to load Gemma runtime"));
+      document.head.appendChild(script);
+    });
+  }
+  try {
+    await state.gemmaScriptPromise;
+  } catch (err) {
+    console.error(err);
+    state.gemmaScriptPromise = null;
+    return false;
+  }
+  return typeof globalThis.Gemma4Mobile === "function";
+}
+
 async function ensureRuntime(def = activeModelDef()) {
   if (!def) return false;
-  if (def.runtime === "gemma") return typeof globalThis.Gemma4Mobile === "function";
+  if (def.runtime === "gemma") return ensureGemmaRuntime();
   if (!state.lfm2Runtime) {
     try {
       const mod = await import("./lfm2_5.js");
@@ -1451,6 +1259,11 @@ async function ensureRuntime(def = activeModelDef()) {
     }
   }
   return !!state.lfm2Runtime;
+}
+
+function resetLoadedModel() {
+  if (!state.model || typeof state.model.reset !== "function") return;
+  try { state.model.reset(); } catch { /* ignore */ }
 }
 
 async function unloadModel() {
@@ -1487,11 +1300,6 @@ function renderModelPicker() {
         ${loaded ? '<span class="model-option-badge">Loaded</span>' : ""}
       </label>`;
   }).join("");
-  picker.querySelectorAll('input[name="model-id"]').forEach(input => {
-    input.addEventListener("change", () => {
-      if (input.checked) selectModel(input.value);
-    });
-  });
 }
 
 async function applyModelSelection(modelId, { silent = false, persistToSession = true } = {}) {
@@ -1532,7 +1340,7 @@ async function selectModel(modelId) {
 
 function syncModelFromSession(session = activeSession()) {
   if (!session) return;
-  state.selectedModelId = resolveModelIdForSession(session);
+  state.selectedModelId = resolveModelIdForSession(session, state.selectedModelId);
   renderModelPicker();
 }
 
@@ -1545,12 +1353,16 @@ async function refreshStorageUI() {
       statusText.hidden = true;
     } else {
       statusText.hidden = false;
-      const cacheOk = "caches" in window
-        && Object.values(MODELS).some(m => m.cacheType !== "gguf" ? "indexedDB" in window : true);
+      const cacheOk = isCacheCapable({
+        fileOrigin: state.fileOrigin,
+        caches: globalThis.caches,
+        indexedDB: globalThis.indexedDB,
+        models: MODELS,
+      });
       if (!cacheOk) {
         statusText.textContent = "Caching not available";
       } else {
-        const stats = await getAllModelsCacheStats();
+        const stats = await getAllModelsCacheStatsLocal();
         statusText.textContent = formatAllModelsCacheStatus(stats);
       }
     }
@@ -1558,13 +1370,6 @@ async function refreshStorageUI() {
   updateStorageButtons();
   updateEmptyCacheHint();
   updateComposerState();
-}
-
-function loadButtonLabel(isHero) {
-  if (state.model) return "Model ready";
-  if (state.loading) return "Loading…";
-  if (isHero && state.modelCached && !state.fileOrigin) return "Start";
-  return "Load model";
 }
 
 function restoreIdleStatus() {
@@ -1575,43 +1380,9 @@ function restoreIdleStatus() {
   else setModelStatus("", "Not loaded");
 }
 
-function labelFor(status) {
-  return ({ init: "Requesting WebGPU…", tokenizer: "Loading tokenizer…", weights: "Downloading weights…", ready: "Model ready" })[status] || status;
-}
-
 function onLoadProgress(event) {
-  if (event.status !== "weights") {
-    const [lo, hi] = PHASE[event.status] || [0, 1];
-    const f = Number.isFinite(event.fraction) ? Math.min(1, Math.max(0, event.fraction)) : 0;
-    const label = `${labelFor(event.status)}${event.message ? " · " + event.message : ""}`;
-    setProgressTarget(lo + (hi - lo) * f);
-    state.progress.label = label;
-    setModelStatus("loading", label);
-    return;
-  }
-  const frac = Number.isFinite(event.fraction) ? Math.min(1, Math.max(0, event.fraction)) : null;
-  const def = activeModelDef();
-  if (def.cacheType === "gguf") {
-    setProgressTarget(0.05 + 0.90 * (frac ?? 0));
-    let label = "Preparing GPU weights…";
-    if (event.kind === "bytes") {
-      const verb = event.fromCache ? "Loading cached weights" : "Downloading weights";
-      const lr = event.loaded != null && event.total != null ? ` ${fmtBytes(event.loaded)}/${fmtBytes(event.total)}` : "";
-      label = `${verb}${lr}${frac != null ? ` · ${Math.round(frac * 100)}%` : ""}`;
-    } else if (frac != null) {
-      label = `Preparing GPU weights · ${Math.round(frac * 100)}%`;
-    }
-    state.progress.label = label;
-    setModelStatus("loading", label);
-    return;
-  }
-  if (event.kind !== "tensors") setProgressTarget(0.05 + 0.95 * (frac ?? 0));
-  let label = "Preparing GPU weights…";
-  if (event.kind === "bytes") {
-    const verb = event.fromCache ? "Loading cached weights" : "Downloading weights";
-    const lr = event.loaded != null && event.total != null ? ` ${fmtBytes(event.loaded)}/${fmtBytes(event.total)}` : "";
-    label = `${verb}${lr}${frac != null ? ` · ${Math.round(frac * 100)}%` : ""}`;
-  }
+  const { target, label } = computeLoadProgress(event, activeModelDef());
+  if (target != null) setProgressTarget(target);
   state.progress.label = label;
   setModelStatus("loading", label);
 }
@@ -1653,7 +1424,13 @@ function updateComposerState() {
   for (const btn of [$("load-model-btn"), $("load-model-btn-hero")]) {
     if (!btn) continue;
     btn.disabled = loadDisabled;
-    btn.textContent = loadButtonLabel(btn.id === "load-model-btn-hero");
+    btn.textContent = loadButtonLabel({
+      model: state.model,
+      loading: state.loading,
+      modelCached: state.modelCached,
+      fileOrigin: state.fileOrigin,
+      isHero: btn.id === "load-model-btn-hero",
+    });
     btn.title = state.model && state.modelLoadSecs ? `Loaded in ${state.modelLoadSecs}s` : "";
   }
 
@@ -1724,63 +1501,7 @@ async function loadModel() {
   }
 }
 
-/* ── Grammar & messages ── */
-
-function buildGrammarSuffix() {
-  if (state.grammarMode === "off") return "";
-  if (state.grammarMode === "json") {
-    const schema = $("grammar-json-schema").value.trim();
-    let block = "\n\n[GRAMMAR — respond with valid JSON only. No markdown fences, no prose outside JSON.]";
-    block += schema ? `\nConform to this JSON Schema:\n${schema}` : "\nOutput a single valid JSON value.";
-    return block;
-  }
-  if (state.grammarMode === "ebnf") {
-    const ebnf = $("grammar-custom").value.trim();
-    if (!ebnf) return "";
-    return `\n\n[GRAMMAR — output only text matching this EBNF. No explanation.]\n\`\`\`ebnf\n${ebnf}\n\`\`\``;
-  }
-  return "";
-}
-
-function buildEffectiveSystemPrompt(base) {
-  const trimmed = (base || "").trim();
-  const suffix = buildGrammarSuffix();
-  return trimmed || suffix ? trimmed + suffix : "";
-}
-
-function buildMessages(session) {
-  const msgs = [];
-  const sys = buildEffectiveSystemPrompt(session.systemPrompt);
-  if (sys) msgs.push({ role: "system", content: sys });
-  for (const m of session.messages) {
-    if (m.role === "user") msgs.push({ role: "user", content: m.content });
-    else if (m.role === "assistant") msgs.push({ role: "assistant", content: m.content });
-  }
-  return msgs;
-}
-
-/** OpenAI Chat Completions message list — portable JSON export (role + content only). */
-function exportSessionOpenAI(session) {
-  const msgs = [];
-  const sys = (session.systemPrompt || "").trim();
-  if (sys) msgs.push({ role: "system", content: sys });
-  for (const m of session.messages) {
-    if (m.role === "user" || m.role === "assistant") {
-      msgs.push({ role: m.role, content: m.content });
-    }
-  }
-  return msgs;
-}
-
-function sessionDownloadFilename(title) {
-  const slug = (title || "conversation").trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 60)
-    .replace(/^-|-$/g, "");
-  return `${slug || "conversation"}.json`;
-}
+/* ── Export ── */
 
 function downloadSession(sessionId) {
   const session = state.sessions.find(s => s.id === sessionId);
@@ -1801,55 +1522,6 @@ function downloadSession(sessionId) {
   a.remove();
   URL.revokeObjectURL(url);
   toast(`Downloaded "${session.title}"`);
-}
-
-function splitThinking(raw) {
-  const text = raw || "";
-  let thinking = "", output = text;
-  const OPENERS = ["<|channel>thought", "<|think|>"];
-  let openIdx = -1, openLen = 0;
-  for (const op of OPENERS) {
-    const i = text.indexOf(op);
-    if (i !== -1 && (openIdx === -1 || i < openIdx)) { openIdx = i; openLen = op.length; }
-  }
-  if (openIdx !== -1) {
-    const before = text.slice(0, openIdx);
-    const after = text.slice(openIdx + openLen).replace(/^\n+/, "");
-    const close = after.indexOf("<channel|>");
-    if (close !== -1) {
-      thinking = after.slice(0, close).trim();
-      output = (after.slice(close + "<channel|>".length).replace(/^\n+/, "") + before).trim();
-    } else {
-      thinking = after.trim();
-      output = "";
-    }
-  }
-  return {
-    thinking,
-    output: output.replace(/<\|channel>thought/g, "").replace(/<\|think|>/g, "").replace(/<channel\|>/g, "").replace(/^\n+/, "").trim(),
-  };
-}
-
-function formatStreamStats({ tokCount, tps, ttft, prefix = "" } = {}) {
-  const parts = [];
-  if (Number.isFinite(tokCount) && tokCount > 0) parts.push(`${tokCount} tok`);
-  if (Number.isFinite(tps) && tps > 0) parts.push(`${tps} tok/s`);
-  if (ttft != null && ttft !== "") parts.push(`TTFT ${ttft}s`);
-  const core = parts.join(" · ");
-  if (!core) return prefix || "…";
-  return prefix ? `${prefix} · ${core}` : core;
-}
-
-function thinkLabel(meta, thinking) {
-  if (meta?.ttft) return `Thought for ${meta.ttft}s`;
-  if (meta?.tokens) return `Show thinking · ${meta.tokens} tok`;
-  if (thinking) return "Show thinking";
-  return "Thinking…";
-}
-
-function statsLine(meta) {
-  if (!meta) return "";
-  return `${meta.tokens} tok · ${meta.tps} tok/s · TTFT ${meta.ttft}s`;
 }
 
 function createAvatar(kind) {
@@ -1921,11 +1593,6 @@ function buildAssistantMessage(msg, { streaming = false } = {}) {
   return wrap;
 }
 
-function modelSupportsThinking() {
-  const def = loadedModelDef() || activeModelDef();
-  return !!def?.supportsThinking;
-}
-
 function buildThinkingDisclosure(thinking, meta, { streaming = false, open = false } = {}) {
   if (!streaming && !thinking) return null;
   if (streaming && !thinking && !modelSupportsThinking()) return null;
@@ -1974,36 +1641,6 @@ function buildMsgFooter(content, meta) {
 }
 
 /* ── Rendering ── */
-
-function esc(s) {
-  return String(s ?? "").replace(/[&<>"']/g, c =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
-function formatTime(ts) {
-  const d = new Date(ts);
-  const now = new Date();
-  return d.toDateString() === now.toDateString()
-    ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : d.toLocaleDateString([], { month: "short", day: "numeric" });
-}
-
-function sessionDateGroup(ts) {
-  const now = new Date();
-  const d = new Date(ts);
-  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startYesterday = new Date(startToday.getTime() - 86400000);
-  const startWeek = new Date(startToday.getTime() - 6 * 86400000);
-  if (d >= startToday) return "Today";
-  if (d >= startYesterday) return "Yesterday";
-  if (d >= startWeek) return "Previous 7 days";
-  return "Older";
-}
-
-function filteredSessions() {
-  const q = state.sessionSearch.trim().toLowerCase();
-  return state.sessions.filter(s => !q || s.title.toLowerCase().includes(q));
-}
 
 function updateChatTitle() {
   const session = activeSession();
@@ -2094,7 +1731,7 @@ function bindSessionDeleteConfirm(btn) {
 
 function renderSessionList() {
   const list = $("session-list");
-  const sessions = filteredSessions();
+  const sessions = filterSessions(state.sessions, state.sessionSearch);
   $("session-search-wrap").classList.toggle("show", state.sessions.length > 8);
   const countEl = $("conv-count");
   if (countEl) countEl.textContent = state.sessions.length ? `(${state.sessions.length})` : "";
@@ -2110,7 +1747,7 @@ function renderSessionList() {
     if (!groups.has(g)) groups.set(g, []);
     groups.get(g).push(s);
   }
-  const order = ["Today", "Yesterday", "Previous 7 days", "Older"];
+  const order = SESSION_GROUP_ORDER;
   list.innerHTML = order.filter(g => groups.has(g)).map(g => {
     const items = groups.get(g).map(s => {
       const renaming = state.renamingSessionId === s.id;
@@ -2126,7 +1763,7 @@ function renderSessionList() {
               <button type="button" class="icon-btn danger" data-del="${esc(s.id)}" aria-label="Delete" title="Delete"></button>
             </div>
           </div>
-          <div class="session-meta">${esc(modelLabel(resolveModelIdForSession(s)))} · ${s.messages.length} messages · ${formatTime(s.updatedAt)}</div>
+          <div class="session-meta">${esc(modelLabel(resolveModelIdForSession(s, state.selectedModelId)))} · ${s.messages.length} messages · ${formatTime(s.updatedAt)}</div>
         </div>`;
     }).join("");
     return `<div class="session-group-label">${g}</div>${items}`;
@@ -2349,30 +1986,42 @@ async function switchSession(id) {
   renderSessionList();
   renderChat();
   syncUIFromSession();
-  const modelId = resolveModelIdForSession(session);
+  const modelId = resolveModelIdForSession(session, state.selectedModelId);
   if (!session.modelId) await patchSessionFields(session, { modelId });
   await applyModelSelection(modelId, { silent: true, persistToSession: false });
-  if (state.model) try { state.model.reset(); } catch { /* ignore */ }
+  resetLoadedModel();
   $("sidebar").classList.remove("open");
 }
 
 async function sendMessage() {
   const input = $("user-input");
   const text = input.value.trim();
-  if (!text || !state.model || state.busy) return;
   const session = activeSession();
+  const expectedModelId = resolveModelIdForSession(session, state.selectedModelId);
+  const sendCheck = canSendToModel({
+    text,
+    model: state.model,
+    busy: state.busy,
+    loadedModelId: state.loadedModelId,
+    expectedModelId,
+  });
+  if (!sendCheck.ok) {
+    if (sendCheck.reason === "model_mismatch") {
+      toast(`Load ${modelLabel(expectedModelId)} before sending in this chat.`);
+    }
+    return;
+  }
   if (!session) return;
 
   session.systemPrompt = $("system-prompt").value;
   if (!session.modelId) session.modelId = state.selectedModelId;
   session.messages.push({ role: "user", content: text });
-  if (session.messages.length === 1) session.title = text.slice(0, 50) + (text.length > 50 ? "…" : "");
+  if (session.messages.length === 1) session.title = firstMessageTitle(text);
   await persistSession(session);
 
   input.value = "";
   input.style.height = "auto";
   renderChat();
-  renderSessionList();
 
   state.busy = true;
   state.abort = new AbortController();
@@ -2381,7 +2030,6 @@ async function sendMessage() {
   createStreamingMessage();
 
   let raw = "", startedAt = 0, firstTokenAt = 0, generatedTokens = 0;
-  let stopped = false;
   try {
     const stream = state.model.generate(buildMessages(session), {
       maxNewTokens: state.maxNewTokens,
@@ -2403,11 +2051,9 @@ async function sendMessage() {
     }
   } catch (err) {
     console.error(err);
-    stopped = true;
-    if (!raw) raw = `_Stopped: ${err?.message || err}_`;
-    if (err?.name === "AbortError" || String(err?.message || "").includes("abort")) {
-      toast("Stopped generating");
-    }
+    const fallback = generationErrorFallback(err, { raw });
+    raw = fallback.raw;
+    if (fallback.toast) toast(fallback.toast);
   } finally {
     const endedAt = performance.now();
     const decodeSec = Math.max((endedAt - firstTokenAt) / 1000, 1e-9);
@@ -2423,7 +2069,6 @@ async function sendMessage() {
     });
     await persistSession(session);
     renderChat();
-    renderSessionList();
     state.busy = false;
     state.abort = null;
     restoreIdleStatus();
@@ -2460,7 +2105,7 @@ async function init() {
 
   try {
     state.db = await openDB();
-    state.sessions = await dbGetAll();
+    state.sessions = await dbGetAll(state.db);
     state.sessions.sort((a, b) => b.updatedAt - a.updatedAt);
   } catch (err) {
     console.error(err);
@@ -2486,7 +2131,7 @@ async function init() {
   if (state.fileOrigin) $("file-origin-note").hidden = false;
 
   await probeWebGPU();
-  await repairBrokenModelCache();
+  await repairBrokenModelCacheLocal();
   await refreshStorageUI();
 }
 
@@ -2497,8 +2142,13 @@ $("load-model-btn").addEventListener("click", loadModel);
 $("load-model-btn-hero").addEventListener("click", loadModel);
 $("new-chat-btn").addEventListener("click", async () => {
   await createSession();
-  renderSessionList(); renderChat(); syncUIFromSession();
-  if (state.model) try { state.model.reset(); } catch { /* ignore */ }
+  renderChat();
+  syncUIFromSession();
+  resetLoadedModel();
+});
+$("model-picker").addEventListener("change", e => {
+  const input = e.target.closest('input[name="model-id"]');
+  if (input?.checked) selectModel(input.value);
 });
 $("sidebar-toggle").addEventListener("click", () => $("sidebar").classList.toggle("open"));
 $("chat-title").addEventListener("dblclick", startRenameActiveChat);
@@ -2513,24 +2163,20 @@ document.querySelectorAll("#grammar-modes .seg-btn").forEach(btn => {
   btn.addEventListener("click", () => { state.grammarMode = btn.dataset.mode; savePrefs(); updateGrammarUI(); });
 });
 
-let debounceTimer = null;
-function debounceSave(fn) {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(fn, 350);
-}
+const debounce = createDebouncer();
 
-$("system-prompt").addEventListener("input", () => debounceSave(async () => {
+$("system-prompt").addEventListener("input", () => debounce("system-prompt", async () => {
   const s = activeSession(); if (!s) return;
   s.systemPrompt = $("system-prompt").value;
   await persistSession(s);
 }));
 
 for (const id of ["grammar-json-schema", "grammar-custom"]) {
-  $(id).addEventListener("input", () => debounceSave(savePrefs));
+  $(id).addEventListener("input", () => debounce(id, savePrefs));
 }
 
 $("max-tokens").addEventListener("change", () => {
-  state.maxNewTokens = Math.max(64, Math.min(8192, parseInt($("max-tokens").value, 10) || 4096));
+  state.maxNewTokens = clampMaxNewTokens($("max-tokens").value);
   $("max-tokens").value = state.maxNewTokens;
   savePrefs();
 });
