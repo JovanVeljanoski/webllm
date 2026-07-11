@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   SESSION_GROUP_ORDER,
+  canRegenerateFromUserMessage,
   canSendToModel,
   createSessionRecord,
   filterSessions,
   firstMessageTitle,
   groupSessionsByDate,
+  lastUserMessageContent,
   normalizeSessionTitle,
   sortSessionsByUpdatedAt,
+  truncateSessionMessagesAfterIndex,
+  updateUserMessageAtIndex,
   upsertSessionInList,
 } from "../lib/sessions.js";
 import { MODELS } from "../lib/models.js";
@@ -104,5 +108,35 @@ describe("canSendToModel", () => {
       loadedModelId: "lfm2",
       expectedModelId: "gemma4",
     })).toEqual({ ok: false, reason: "model_mismatch" });
+  });
+});
+
+describe("message branch helpers", () => {
+  const session = {
+    title: "First question",
+    messages: [
+      { role: "user", content: "Hello" },
+      { role: "assistant", content: "Hi there" },
+      { role: "user", content: "Follow up" },
+      { role: "assistant", content: "Sure" },
+    ],
+  };
+
+  it("truncates messages after a user turn", () => {
+    const next = truncateSessionMessagesAfterIndex(session, 0);
+    expect(next.messages).toHaveLength(1);
+    expect(next.messages[0].content).toBe("Hello");
+  });
+
+  it("updates a user message and retitles when it is the first user turn", () => {
+    const next = updateUserMessageAtIndex(session, 0, "Updated hello");
+    expect(next?.messages[0].content).toBe("Updated hello");
+    expect(next?.title).toBe("Updated hello");
+  });
+
+  it("finds the latest user message and validates regenerate targets", () => {
+    expect(lastUserMessageContent(session)).toBe("Follow up");
+    expect(canRegenerateFromUserMessage(session, 2)).toBe(true);
+    expect(canRegenerateFromUserMessage(session, 1)).toBe(false);
   });
 });

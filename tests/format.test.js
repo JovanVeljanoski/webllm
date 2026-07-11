@@ -3,6 +3,7 @@ import {
   esc,
   fmtBytes,
   formatStreamStats,
+  formatPrefillStats,
   formatTime,
   sessionDownloadFilename,
   statsLine,
@@ -58,5 +59,17 @@ describe("stream and stats helpers", () => {
   it("statsLine renders footer stats", () => {
     expect(statsLine({ tokens: 8, tps: "12.0", ttft: "0.5" }))
       .toBe("8 tok · 12.0 tok/s · TTFT 0.5s");
+    expect(statsLine({
+      tokens: 40,
+      tps: "10.0",
+      ttft: "3.4",
+      prefillTokens: 820,
+      prefillSec: "3.1",
+    })).toBe("Prefill 820 tok · 3.1s · 40 tok · 10.0 tok/s · TTFT 3.4s");
+  });
+
+  it("formatPrefillStats shows active prefill", () => {
+    expect(formatPrefillStats({ prefillTokens: 500, active: true }))
+      .toBe("Prefill · 500 tok · …");
   });
 });

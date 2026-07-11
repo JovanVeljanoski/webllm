@@ -248,6 +248,128 @@
   .grammar-extra.show { display: block; }
   .grammar-extra textarea { min-height: 72px; font-family: var(--mono); font-size: 11px; }
   .hint-box { font-size: 11px; color: var(--text-muted); line-height: 1.5; padding: 8px 10px; border-radius: var(--radius-xs); background: var(--surface-2); margin-top: 8px; }
+  .toggle-row { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+  .switch-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    font-size: 13px; user-select: none; position: relative;
+  }
+  .switch-label-wrap {
+    display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+  }
+  .switch-row .switch-label {
+    font-weight: 600; color: var(--text); cursor: pointer;
+  }
+  .help-tip {
+    position: relative; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; padding: 0;
+    border: 1.5px solid color-mix(in srgb, var(--border) 80%, var(--text-muted));
+    border-radius: 50%; background: var(--surface-2);
+    font-size: 11px; font-weight: 700; line-height: 1; color: var(--text-muted);
+    cursor: help; font-family: inherit;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .help-tip:hover,
+  .help-tip:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+    color: var(--accent); background: var(--accent-soft);
+  }
+  .help-tip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .help-tip-text {
+    position: absolute; left: 50%; bottom: calc(100% + 8px);
+    transform: translateX(-50%) translateY(4px);
+    width: max-content; max-width: min(240px, calc(100vw - 32px));
+    padding: 8px 10px; border-radius: var(--radius-xs);
+    border: 1px solid var(--border);
+    background: var(--surface); color: var(--text-secondary);
+    font-size: 11px; font-weight: 500; line-height: 1.45; text-align: center;
+    box-shadow: var(--shadow-md);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity 0.15s, visibility 0.15s, transform 0.15s;
+    z-index: 20;
+  }
+  .help-tip-text::after {
+    content: ""; position: absolute; top: 100%; left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent; border-top-color: var(--border);
+  }
+  .switch-row:has(.help-tip:hover) .help-tip-text,
+  .switch-row:has(.help-tip:focus-visible) .help-tip-text {
+    opacity: 1; visibility: visible;
+    transform: translateX(-50%) translateY(0);
+  }
+  .switch-wrap { position: relative; flex-shrink: 0; }
+  .switch-input {
+    position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+    opacity: 0; cursor: pointer; z-index: 1;
+  }
+  .switch-slider {
+    position: relative;
+    display: block; width: 44px; height: 26px; border-radius: 999px;
+    background: color-mix(in srgb, var(--border) 85%, var(--text-muted));
+    border: 1.5px solid var(--border);
+    transition: background 0.2s, border-color 0.2s;
+    pointer-events: none;
+  }
+  .switch-slider::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--surface);
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18);
+    transition: transform 0.2s ease;
+  }
+  .switch-input:checked + .switch-slider {
+    background: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+  }
+  .switch-input:checked + .switch-slider::after {
+    transform: translateX(18px);
+  }
+  .switch-input:focus-visible + .switch-slider {
+    outline: var(--focus-ring); outline-offset: 2px;
+  }
+  .switch-input:disabled { cursor: not-allowed; }
+  .switch-input:disabled + .switch-slider { opacity: 0.55; }
+  .tool-trace { font-size: 11px; color: var(--text-muted); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-soft); }
+
+  .avatar.thinking {
+    border-color: color-mix(in srgb, #8b5cf6 30%, var(--border));
+    background: color-mix(in srgb, rgba(139, 92, 246, 0.12) 70%, var(--surface));
+    color: #8b5cf6;
+  }
+  .avatar.tool {
+    border-color: color-mix(in srgb, #f59e0b 35%, var(--border));
+    background: color-mix(in srgb, rgba(245, 158, 11, 0.12) 70%, var(--surface));
+    color: #d97706;
+  }
+  .msg.agent-step.tool-call .msg-card,
+  .msg.agent-step.tool-result .msg-card {
+    border-color: color-mix(in srgb, #f59e0b 22%, var(--border));
+  }
+  .tool-query-line {
+    font-size: 15px; line-height: 1.6; color: var(--text);
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .tool-searching {
+    display: flex; align-items: center; gap: 10px; margin-top: 10px;
+    font-size: 13px; color: var(--text-secondary);
+  }
+  .tool-result-disclosure {
+    border: 1px solid var(--border-soft); border-radius: 10px;
+    background: var(--think-bg); overflow: hidden;
+  }
+  .tool-result-disclosure summary {
+    list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--text-secondary); user-select: none;
+  }
+  .tool-result-disclosure summary .tool-result-label { flex: 1; min-width: 0; }
+  .tool-result-disclosure summary .chevron { transition: transform 0.15s; }
+  .tool-result-disclosure[open] summary .chevron { transform: rotate(180deg); }
+  .tool-result-disclosure summary::-webkit-details-marker { display: none; }
+  .tool-result-disclosure .tool-result-content {
+    padding: 0 14px 14px; font-family: var(--mono); font-size: 12px; line-height: 1.55;
+    color: var(--text-secondary); white-space: pre-wrap; max-height: 280px; overflow-y: auto;
+  }
   .field-hint { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin: 0 0 10px; }
   .storage-actions { display: flex; flex-direction: column; gap: 6px; }
   .storage-actions .btn { width: 100%; text-align: center; font-size: 12px; padding: 8px 10px; }
@@ -344,7 +466,8 @@
     display: none; padding: 10px 24px; font-size: 13px; line-height: 1.5; border-bottom: 1px solid transparent;
   }
   #webgpu-banner.show { display: block; }
-  #webgpu-banner.inline { padding: 10px 14px; border-radius: var(--radius-xs); border: 1px solid transparent; margin-top: 12px; font-size: 12px; }
+  #webgpu-banner.inline { padding: 10px 14px; border-radius: var(--radius-xs); border: 1px solid transparent; margin-top: 12px; margin-bottom: 0; font-size: 12px; }
+  #empty-banner-mount:not(:empty) { margin-bottom: 16px; }
   #webgpu-banner[data-level="error"] { background: rgba(239,68,68,0.1); color: var(--danger); border-color: rgba(239,68,68,0.2); }
   #webgpu-banner[data-level="warn"] { background: rgba(245,158,11,0.12); color: var(--warning); border-color: rgba(245,158,11,0.25); }
   #webgpu-banner[data-level="ok"] { background: rgba(16,185,129,0.1); color: var(--success); border-color: rgba(16,185,129,0.2); }
@@ -361,6 +484,8 @@
     padding: 32px 0 40px;
   }
   .msg { width: 100%; animation: fadeUp 0.28s ease; }
+  .msg.streaming,
+  .msg.agent-step.streaming { animation: none; }
 
   .msg-inner {
     max-width: 780px; margin: 0 auto; padding: 0 28px;
@@ -408,14 +533,57 @@
     box-shadow: 0 6px 22px rgba(15, 23, 42, 0.06);
   }
 
+  .msg-card-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-bottom: 11px;
+  }
+  .msg-card-head .msg-role { margin-bottom: 0; flex: 1; min-width: 0; }
+
   .msg-role {
     font-size: 11px; font-weight: 700; color: var(--text-muted);
     margin-bottom: 11px; letter-spacing: 0.06em; text-transform: uppercase;
   }
 
-  .msg-content, .response-content {
+  .msg-content {
     font-size: 15.5px; line-height: 1.72; color: var(--text);
     white-space: pre-wrap; word-break: break-word;
+  }
+  .response-content {
+    font-size: 15.5px; line-height: 1.72; color: var(--text);
+    word-break: break-word;
+  }
+  .response-content > :first-child { margin-top: 0; }
+  .response-content > :last-child { margin-bottom: 0; }
+  .response-content p { margin: 0 0 0.75em; }
+  .response-content ul, .response-content ol { margin: 0 0 0.75em; padding-left: 1.4em; }
+  .response-content li { margin: 0.2em 0; }
+  .response-content h1, .response-content h2, .response-content h3,
+  .response-content h4, .response-content h5, .response-content h6 {
+    margin: 1.1em 0 0.45em; line-height: 1.35; font-weight: 700;
+  }
+  .response-content h1 { font-size: 1.35em; }
+  .response-content h2 { font-size: 1.2em; }
+  .response-content h3 { font-size: 1.08em; }
+  .response-content blockquote {
+    margin: 0 0 0.75em; padding: 0.2em 0 0.2em 0.9em;
+    border-left: 3px solid var(--border); color: var(--text-secondary);
+  }
+  .response-content code {
+    font-family: var(--mono); font-size: 0.9em;
+    background: var(--think-bg); padding: 0.12em 0.35em; border-radius: 5px;
+  }
+  .response-content pre {
+    margin: 0 0 0.85em; padding: 12px 14px; overflow-x: auto;
+    border-radius: 10px; background: var(--think-bg); border: 1px solid var(--border-soft);
+  }
+  .response-content pre code { background: none; padding: 0; border-radius: 0; }
+  .response-content a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+  .response-content hr { border: none; border-top: 1px solid var(--border-soft); margin: 1em 0; }
+  .response-content table {
+    width: 100%; margin: 0 0 0.85em; border-collapse: collapse; font-size: 0.95em;
+  }
+  .response-content th, .response-content td {
+    border: 1px solid var(--border-soft); padding: 6px 10px; text-align: left;
   }
 
   .think-disclosure {
@@ -428,7 +596,24 @@
   }
   .think-disclosure summary::-webkit-details-marker { display: none; }
   .think-disclosure summary:focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
-  .think-disclosure summary .chevron { margin-left: auto; transition: transform 0.15s; }
+  .summary-actions {
+    display: inline-flex; align-items: center; gap: 4px; margin-left: auto; flex-shrink: 0;
+  }
+  .msg-head-actions {
+    display: inline-flex; align-items: center; gap: 4px; margin-left: auto; flex-shrink: 0;
+  }
+  .msg-head-actions .footer-action { opacity: 0; transition: opacity 0.15s; }
+  .msg:hover .msg-head-actions .footer-action,
+  .msg.editing .msg-head-actions .footer-action { opacity: 1; }
+  @media (hover: none) { .msg-head-actions .footer-action { opacity: 1; } }
+  .msg-edit-input {
+    width: 100%; min-height: 44px; resize: vertical;
+    font: inherit; line-height: 1.72; color: var(--text);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px;
+  }
+  .msg-edit-input:focus { outline: var(--focus-ring); outline-offset: 1px; }
+  .think-disclosure summary .chevron { transition: transform 0.15s; }
   .think-disclosure[open] summary .chevron { transform: rotate(180deg); }
   .think-disclosure .think-content {
     padding: 0 14px 14px; font-family: var(--mono); font-size: 13px; line-height: 1.65;
@@ -458,6 +643,15 @@
   }
   .footer-action:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
   .footer-action:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+  .copy-action-icon {
+    padding: 4px 7px; opacity: 0; transition: opacity 0.15s;
+  }
+  .copy-action-icon .icon svg { width: 14px; height: 14px; }
+  .msg:hover .copy-action-icon,
+  .msg:hover .msg-head-actions .copy-action-icon,
+  .think-disclosure summary:hover .copy-action-icon,
+  .tool-result-disclosure summary:hover .copy-action-icon { opacity: 1; }
+  @media (hover: none) { .copy-action-icon { opacity: 1; } }
 
   #chat-inner {
     max-width: none; margin: 0; padding: 0;
@@ -493,6 +687,26 @@
   }
   .thinking-dots span:nth-child(2) { animation-delay: 0.15s; }
   .thinking-dots span:nth-child(3) { animation-delay: 0.3s; }
+  .stream-search-banner {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; margin-bottom: 10px; border-radius: 12px;
+    background: color-mix(in srgb, var(--accent-soft) 85%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+    font-size: 13px; color: var(--text-secondary);
+  }
+  .stream-search-banner[hidden] { display: none !important; }
+  .search-spinner {
+    width: 16px; height: 16px; border-radius: 50%; flex: none;
+    border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    border-top-color: var(--accent);
+    animation: spin 0.85s linear infinite;
+  }
+  .stream-search-banner strong { color: var(--text); font-weight: 600; }
+  .stream-phase-line {
+    display: block; font-size: 12px; color: var(--text-muted);
+    font-family: var(--mono); margin-bottom: 4px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .stream-cursor {
     display: inline-block; width: 2px; height: 1em; background: var(--accent);
     margin-left: 2px; vertical-align: -2px; animation: blink 0.9s steps(2) infinite;
@@ -601,6 +815,26 @@
         <summary>System prompt</summary>
         <div class="side-block-body">
           <textarea id="system-prompt" placeholder="You are a helpful assistant…"></textarea>
+        </div>
+      </details>
+      <details class="side-block" id="tools-block">
+        <summary>Tools</summary>
+        <div class="side-block-body">
+          <div class="field-group">
+            <div class="switch-row">
+              <span class="switch-label-wrap">
+                <label class="switch-label" for="web-search-toggle">Web search</label>
+                <button type="button" class="help-tip" id="web-search-help" aria-label="About web search" aria-describedby="web-search-help-text">
+                  ?
+                </button>
+              </span>
+              <label class="switch-wrap" for="web-search-toggle">
+                <input type="checkbox" id="web-search-toggle" class="switch-input" role="switch" aria-label="Web search">
+                <span class="switch-slider" aria-hidden="true"></span>
+              </label>
+              <span class="help-tip-text" id="web-search-help-text" role="tooltip">Enable to let the model search the web via Exa MCP when needed.</span>
+            </div>
+          </div>
         </div>
       </details>
       <details class="side-block" id="settings-block">
@@ -744,15 +978,30 @@ import {
   fmtBytes,
   formatTime,
   formatStreamStats,
+  formatPrefillStats,
   thinkLabel,
   statsLine,
   sessionDownloadFilename,
 } from "./lib/format.js";
 import {
   buildMessages as buildMessagesForModel,
+  buildAgentMessages,
   exportSessionOpenAI,
   splitThinking,
 } from "./lib/messages.js";
+import { runAgentTurn } from "./lib/agent-loop.js";
+import { WEB_SEARCH_TOOLS } from "./lib/tools.js";
+import { looksLikeToolCallSyntax, stripToolCallSyntax, hasUnclosedThoughtChannel } from "./lib/tool-parser.js";
+import { safeAssistantContent } from "./lib/agent-content.js";
+import { sanitizeExternalText } from "./lib/sanitize.js";
+import { userWantsWebSearch } from "./lib/search-intent.js";
+import { defaultSearchProvider } from "./lib/exa-search.js";
+import { GenerationTracker, appendThinkingTrace } from "./lib/generation-tracker.js";
+import { isPrefillChunk } from "./lib/gemma-generate.js";
+import { formatActivePhaseStatus, formatThinkPanelLabel } from "./lib/phase-status.js";
+import { configureMarkdownParser, renderMarkdownHtml } from "./lib/markdown-render.js";
+import { scrollToBottomIfPinned } from "./lib/chat-scroll.js";
+import { AgentStepStore } from "./lib/agent-step-store.js";
 import {
   sessionDateGroup,
   filterSessions,
@@ -762,6 +1011,10 @@ import {
   normalizeSessionTitle,
   SESSION_GROUP_ORDER,
   canSendToModel,
+  canRegenerateFromUserMessage,
+  lastUserMessageContent,
+  truncateSessionMessagesAfterIndex,
+  updateUserMessageAtIndex,
 } from "./lib/sessions.js";
 import { generationErrorFallback } from "./lib/generation.js";
 import { detectBrowser } from "./lib/browser.js";
@@ -786,6 +1039,13 @@ import {
 
 "use strict";
 
+import("https://esm.sh/marked@17")
+  .then((m) => {
+    m.marked.use({ gfm: true, breaks: true });
+    configureMarkdownParser(m.marked);
+  })
+  .catch(() => {});
+
 function activeModelDef() {
   return pickActiveModel(state.selectedModelId);
 }
@@ -798,6 +1058,11 @@ function modelSupportsThinking() {
   return modelHasThinking(state.loadedModelId, state.selectedModelId);
 }
 
+function webSearchEffective() {
+  const def = loadedModelDef() || activeModelDef();
+  return !!state.webSearchPreferred && !!def?.supportsTools && !!state.model;
+}
+
 function grammarConfig() {
   return {
     grammarMode: state.grammarMode,
@@ -807,6 +1072,9 @@ function grammarConfig() {
 }
 
 function buildMessages(session) {
+  if (webSearchEffective()) {
+    return buildAgentMessages(session);
+  }
   return buildMessagesForModel(session, grammarConfig());
 }
 
@@ -850,8 +1118,11 @@ const ICONS = {
   moon: '<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
   chevron: '<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
   copy: '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/><path d="M3 12a9 9 0 1 1 2.64 6.36"/><path d="M3 21v-6h6"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>',
   download: '<svg viewBox="0 0 24 24"><path d="M12 3v10"/><path d="m8 11 4 4 4-4"/><path d="M5 21h14"/></svg>',
   brain: '<svg viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3v1a2 2 0 0 0-2 2 2 2 0 0 0 0 4 2 2 0 0 0 2 2v1a3 3 0 0 0 3 3"/><path d="M15 4a3 3 0 0 1 3 3v1a2 2 0 0 1 2 2 2 2 0 0 1 0 4 2 2 0 0 1-2 2v1a3 3 0 0 1-3 3"/><path d="M9 7h6M9 17h6"/></svg>',
+  wrench: '<svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
 };
 
 function icon(name) {
@@ -892,9 +1163,26 @@ const state = {
   loadedModelId: null,
   gemmaScriptPromise: null,
   lfm2Runtime: null,
+  webSearchPreferred: false,
+  agentPhase: "",
 };
 
 const $ = id => document.getElementById(id);
+
+const STEP_LABELS = {
+  thinking: "Thinking",
+  tool_call: "Web search",
+  tool_result: "Search results",
+  answer: ASSISTANT_LABEL,
+};
+
+function chatScrollEl() {
+  return $("chat-scroll");
+}
+
+function scrollChatToBottom(force = false) {
+  scrollToBottomIfPinned(chatScrollEl(), { force });
+}
 
 /* ── Toast ── */
 
@@ -984,9 +1272,11 @@ function savePrefs() {
         conversations: $("conversations-block")?.open,
         system: $("system-block")?.open,
         model: $("model-block")?.open,
+        tools: $("tools-block")?.open,
         settings: $("settings-block")?.open,
         storage: $("storage-block")?.open,
       },
+      webSearchPreferred: state.webSearchPreferred,
     })));
   } catch { /* ignore */ }
 }
@@ -1000,10 +1290,12 @@ function loadPrefs() {
   if (p.grammarJsonSchema) $("grammar-json-schema").value = p.grammarJsonSchema;
   if (p.grammarEbnf) $("grammar-custom").value = p.grammarEbnf;
   if (p.sessionSearch) { state.sessionSearch = p.sessionSearch; $("session-search").value = p.sessionSearch; }
+  state.webSearchPreferred = p.webSearchPreferred === true;
   if (p.sidebarOpen) {
     if (typeof p.sidebarOpen.conversations === "boolean") $("conversations-block").open = p.sidebarOpen.conversations;
     if (typeof p.sidebarOpen.system === "boolean") $("system-block").open = p.sidebarOpen.system;
     if (typeof p.sidebarOpen.model === "boolean") $("model-block").open = p.sidebarOpen.model;
+    if (typeof p.sidebarOpen.tools === "boolean") $("tools-block").open = p.sidebarOpen.tools;
     if (typeof p.sidebarOpen.settings === "boolean") $("settings-block").open = p.sidebarOpen.settings;
     if (typeof p.sidebarOpen.storage === "boolean") $("storage-block").open = p.sidebarOpen.storage;
   }
@@ -1330,6 +1622,7 @@ async function applyModelSelection(modelId, { silent = false, persistToSession =
   }
   savePrefs();
   renderModelPicker();
+  updateWebSearchUI();
   await refreshStorageUI();
   updateEmptyCacheHint();
 }
@@ -1497,6 +1790,7 @@ async function loadModel() {
   } finally {
     state.loading = false;
     updateComposerState();
+    updateWebSearchUI();
     renderModelPicker();
   }
 }
@@ -1527,29 +1821,292 @@ function downloadSession(sessionId) {
 function createAvatar(kind) {
   const av = document.createElement("div");
   av.className = `avatar ${kind}`;
-  setIcon(av, kind === "user" ? "user" : "spark");
+  const iconName = {
+    user: "user",
+    assistant: "spark",
+    thinking: "brain",
+    tool: "wrench",
+  }[kind] || "spark";
+  setIcon(av, iconName);
   return av;
 }
 
-function createMsgShell(roleName) {
+function createMsgShell(roleName, { headActions = null } = {}) {
   const inner = document.createElement("div");
   inner.className = "msg-inner";
   const body = document.createElement("div");
   body.className = "msg-body";
   const card = document.createElement("div");
   card.className = "msg-card";
+  const head = document.createElement("div");
+  head.className = "msg-card-head";
   const role = document.createElement("div");
   role.className = "msg-role";
   role.textContent = roleName;
-  card.appendChild(role);
+  head.appendChild(role);
+  if (headActions) head.appendChild(headActions);
+  card.appendChild(head);
   body.appendChild(card);
-  return { inner, body, card };
+  return { inner, body, card, head };
 }
 
-function buildUserMessage(content) {
+function resolveCopyText(btn) {
+  if (typeof btn._copyText === "string" && btn._copyText.length > 0) return btn._copyText;
+  const sourceSel = btn.dataset.copySource;
+  if (sourceSel) {
+    const root = btn.closest(".msg-card") || btn.closest("details") || btn.closest(".msg");
+    const el = root?.querySelector(sourceSel);
+    if (el?.dataset?.rawMarkdown != null) return el.dataset.rawMarkdown;
+    if (el) return el.textContent || "";
+  }
+  const response = btn.closest(".msg")?.querySelector(".response-content");
+  if (response?.dataset?.rawMarkdown != null) return response.dataset.rawMarkdown;
+  return response?.textContent || "";
+}
+
+function appendResponseStreamCursor(container) {
+  const cursor = document.createElement("span");
+  cursor.className = "stream-cursor";
+  const anchor = container.querySelector("p:last-of-type, li:last-of-type, pre:last-of-type, h1:last-of-type, h2:last-of-type, h3:last-of-type");
+  (anchor || container).appendChild(cursor);
+}
+
+function setResponseContent(el, markdown, { streaming = false } = {}) {
+  if (!el) return;
+  const raw = markdown || "";
+  el.dataset.rawMarkdown = raw;
+  el.innerHTML = renderMarkdownHtml(raw);
+  el.querySelector(".stream-cursor")?.remove();
+  if (streaming && raw) appendResponseStreamCursor(el);
+}
+
+async function writeClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.position = "fixed";
+  ta.style.left = "-9999px";
+  document.body.appendChild(ta);
+  ta.select();
+  if (!document.execCommand("copy")) throw new Error("copy failed");
+  ta.remove();
+}
+
+async function performCopy(btn) {
+  const text = resolveCopyText(btn);
+  if (!text) {
+    toast("Nothing to copy");
+    return;
+  }
+  try {
+    await writeClipboard(text);
+    const label = btn.querySelector(".copy-label");
+    if (label) {
+      label.textContent = " Copied";
+      setTimeout(() => { label.textContent = " Copy"; }, 1500);
+    }
+    toast("Copied to clipboard");
+  } catch {
+    toast("Copy failed");
+  }
+}
+
+function createCopyButton({ text = "", copySource = "", compact = false, label = "Copy" } = {}) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = compact ? "footer-action copy-action-icon" : "footer-action";
+  btn.dataset.copy = "1";
+  btn.setAttribute("aria-label", label);
+  btn.append(icon("copy"));
+  if (text) btn._copyText = text;
+  if (copySource) btn.dataset.copySource = copySource;
+  if (!compact) {
+    const copyLabel = document.createElement("span");
+    copyLabel.className = "copy-label";
+    copyLabel.textContent = " Copy";
+    btn.append(copyLabel);
+  }
+  btn.addEventListener("click", e => {
+    e.stopPropagation();
+    e.preventDefault();
+    performCopy(btn);
+  });
+  return btn;
+}
+
+function createIconButton({ name, label, onClick, compact = true } = {}) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = compact ? "footer-action copy-action-icon" : "footer-action";
+  btn.setAttribute("aria-label", label);
+  btn.append(icon(name));
+  btn.addEventListener("click", e => {
+    e.stopPropagation();
+    e.preventDefault();
+    onClick?.(e, btn);
+  });
+  return btn;
+}
+
+function buildUserMessageHeadActions(messageIndex) {
+  const actions = document.createElement("span");
+  actions.className = "msg-head-actions";
+  actions.append(
+    createCopyButton({ compact: true, copySource: ".msg-content", label: "Copy message" }),
+    createIconButton({
+      name: "edit",
+      label: "Edit message",
+      onClick: () => startUserMessageEdit(messageIndex),
+    }),
+    createIconButton({
+      name: "refresh",
+      label: "Regenerate from here",
+      onClick: () => rerunFromUserMessage(messageIndex),
+    }),
+  );
+  return actions;
+}
+
+function userMessageEl(messageIndex) {
+  return document.querySelector(`.msg.user[data-msg-index="${messageIndex}"]`);
+}
+
+function generationSendCheck(session) {
+  const expectedModelId = resolveModelIdForSession(session, state.selectedModelId);
+  return {
+    expectedModelId,
+    ...canSendToModel({
+      text: lastUserMessageContent(session) || "x",
+      model: state.model,
+      busy: state.busy,
+      loadedModelId: state.loadedModelId,
+      expectedModelId,
+    }),
+  };
+}
+
+async function commitUserMessageEdit(messageIndex, content) {
+  const session = activeSession();
+  if (!session) return false;
+  const next = updateUserMessageAtIndex(session, messageIndex, content);
+  if (!next) {
+    toast("Message cannot be empty");
+    return false;
+  }
+  Object.assign(session, next);
+  session.systemPrompt = $("system-prompt").value;
+  await persistSession(session);
+  renderChat();
+  return true;
+}
+
+function startUserMessageEdit(messageIndex) {
+  if (state.busy) {
+    toast("Wait for the current response to finish");
+    return;
+  }
+  const session = activeSession();
+  if (!session?.messages[messageIndex] || session.messages[messageIndex].role !== "user") return;
+
+  const wrap = userMessageEl(messageIndex);
+  if (!wrap || wrap.dataset.editing === "1") return;
+
+  const contentEl = wrap.querySelector(".msg-content");
+  const headActions = wrap.querySelector(".msg-head-actions");
+  if (!contentEl || !headActions) return;
+
+  const original = contentEl.textContent || "";
+  wrap.classList.add("editing");
+  wrap.dataset.editing = "1";
+
+  const ta = document.createElement("textarea");
+  ta.className = "msg-edit-input";
+  ta.value = original;
+  ta.rows = 1;
+  contentEl.replaceWith(ta);
+  autoResizeTextarea(ta);
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+
+  headActions.replaceChildren(
+    createIconButton({
+      name: "check",
+      label: "Save edit",
+      onClick: async () => { await finishUserMessageEdit(messageIndex, true); },
+    }),
+    createIconButton({
+      name: "close",
+      label: "Cancel edit",
+      onClick: () => { finishUserMessageEdit(messageIndex, false); },
+    }),
+  );
+
+  let done = false;
+  const finishUserMessageEdit = async (idx, save) => {
+    if (done) return;
+    done = true;
+    wrap.dataset.editing = "0";
+    wrap.classList.remove("editing");
+    if (save) {
+      const next = ta.value.trim();
+      if (!next) {
+        toast("Message cannot be empty");
+        renderChat();
+        return;
+      }
+      await commitUserMessageEdit(idx, next);
+      return;
+    }
+    renderChat();
+  };
+
+  ta.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      finishUserMessageEdit(messageIndex, true);
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      finishUserMessageEdit(messageIndex, false);
+    }
+  });
+}
+
+async function rerunFromUserMessage(messageIndex) {
+  if (state.busy) {
+    toast("Wait for the current response to finish");
+    return;
+  }
+  const session = activeSession();
+  if (!session || !canRegenerateFromUserMessage(session, messageIndex)) return;
+
+  const sendCheck = generationSendCheck(session);
+  if (!sendCheck.ok) {
+    if (sendCheck.reason === "model_mismatch") {
+      toast(`Load ${modelLabel(sendCheck.expectedModelId)} before regenerating in this chat.`);
+    } else {
+      toast("Load a model before regenerating.");
+    }
+    return;
+  }
+
+  const truncated = truncateSessionMessagesAfterIndex(session, messageIndex);
+  session.messages = truncated.messages;
+  session.systemPrompt = $("system-prompt").value;
+  await persistSession(session);
+  renderChat({ scrollForce: true });
+  await runAssistantGeneration(session);
+}
+
+function buildUserMessage(content, messageIndex) {
   const wrap = document.createElement("div");
   wrap.className = "msg user";
-  const shell = createMsgShell("You");
+  wrap.dataset.msgIndex = String(messageIndex);
+  const shell = createMsgShell("You", { headActions: buildUserMessageHeadActions(messageIndex) });
   shell.inner.append(createAvatar("user"), shell.body);
   const contentEl = document.createElement("div");
   contentEl.className = "msg-content";
@@ -1557,6 +2114,15 @@ function buildUserMessage(content) {
   shell.card.appendChild(contentEl);
   wrap.appendChild(shell.inner);
   return wrap;
+}
+
+function appendSummaryCopy(summary, { text = "", copySource = "" } = {}) {
+  const actions = document.createElement("span");
+  actions.className = "summary-actions";
+  actions.appendChild(createCopyButton({ compact: true, text, copySource, label: "Copy" }));
+  const chev = summary.querySelector(".chevron");
+  if (chev) actions.appendChild(chev);
+  summary.appendChild(actions);
 }
 
 function buildAssistantMessage(msg, { streaming = false } = {}) {
@@ -1574,11 +2140,19 @@ function buildAssistantMessage(msg, { streaming = false } = {}) {
 
   const response = document.createElement("div");
   response.className = "response-content";
-  if (!streaming || content) response.textContent = content;
+  if (!streaming || content) setResponseContent(response, content);
   shell.card.appendChild(response);
 
   if (!streaming) {
     shell.card.appendChild(buildMsgFooter(content, msg?.meta));
+    if (msg?.toolTrace?.length) {
+      const trace = document.createElement("div");
+      trace.className = "tool-trace";
+      trace.textContent = msg.toolTrace.map(t =>
+        `Search: "${t.query}" — ${t.status}${t.resultCount != null ? ` (${t.resultCount} results)` : ""}`,
+      ).join(" · ");
+      shell.card.appendChild(trace);
+    }
   } else {
     const footer = document.createElement("div");
     footer.className = "msg-footer stream-footer";
@@ -1595,10 +2169,9 @@ function buildAssistantMessage(msg, { streaming = false } = {}) {
 
 function buildThinkingDisclosure(thinking, meta, { streaming = false, open = false } = {}) {
   if (!streaming && !thinking) return null;
-  if (streaming && !thinking && !modelSupportsThinking()) return null;
   const details = document.createElement("details");
   details.className = "think-disclosure";
-  if (open) details.open = true;
+  if (open || streaming) details.open = true;
 
   const summary = document.createElement("summary");
   const label = document.createElement("span");
@@ -1607,6 +2180,7 @@ function buildThinkingDisclosure(thinking, meta, { streaming = false, open = fal
   const chev = icon("chevron");
   chev.classList.add("chevron");
   summary.append(icon("brain"), label, chev);
+  appendSummaryCopy(summary, { copySource: ".think-content" });
 
   const content = document.createElement("div");
   content.className = "think-content";
@@ -1623,21 +2197,205 @@ function buildThinkingDisclosure(thinking, meta, { streaming = false, open = fal
 function buildMsgFooter(content, meta) {
   const footer = document.createElement("div");
   footer.className = "msg-footer";
-  const copyBtn = document.createElement("button");
-  copyBtn.type = "button";
-  copyBtn.className = "footer-action";
-  copyBtn.dataset.copy = "1";
-  copyBtn.append(icon("copy"));
-  const copyLabel = document.createElement("span");
-  copyLabel.className = "copy-label";
-  copyLabel.textContent = " Copy";
-  copyBtn.append(copyLabel);
+  const copyBtn = createCopyButton({ text: content });
   const stats = document.createElement("span");
   stats.className = "msg-stats-inline";
   stats.textContent = statsLine(meta);
   footer.append(copyBtn, stats);
-  copyBtn._copyText = content;
   return footer;
+}
+
+function buildThinkingStepPanel(thinking, label, { streaming = false, streamStatus = "" } = {}) {
+  const details = document.createElement("details");
+  details.className = "think-disclosure";
+  details.open = true;
+
+  const summary = document.createElement("summary");
+  const labelEl = document.createElement("span");
+  labelEl.className = "think-label";
+  labelEl.textContent = streaming && !thinking ? `${label || "Thinking"}…` : (label || "Thinking");
+  const chev = icon("chevron");
+  chev.classList.add("chevron");
+  summary.append(icon("brain"), labelEl, chev);
+  appendSummaryCopy(summary, { copySource: ".think-content" });
+
+  const content = document.createElement("div");
+  content.className = "think-content";
+  if (streaming && !thinking) {
+    content.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div>';
+  } else {
+    content.textContent = thinking;
+  }
+
+  details.append(summary, content);
+
+  const wrap = document.createDocumentFragment();
+  wrap.appendChild(details);
+  if (streaming && streamStatus) {
+    const footer = document.createElement("div");
+    footer.className = "msg-footer stream-footer";
+    const stats = document.createElement("span");
+    stats.className = "msg-stats-inline";
+    stats.textContent = streamStatus;
+    footer.appendChild(stats);
+    wrap.appendChild(footer);
+  }
+  return wrap;
+}
+
+function buildAgentStepMessage(step, { streamStatus = "" } = {}) {
+  const wrap = document.createElement("div");
+  const typeClass = step.type.replaceAll("_", "-");
+  wrap.className = `msg agent-step ${typeClass}` + (step.type === "answer" ? " assistant" : "") + (step.streaming ? " streaming" : "");
+
+  const avatarKind = step.type === "thinking"
+    ? "thinking"
+    : (step.type === "tool_call" || step.type === "tool_result" ? "tool" : "assistant");
+  const roleName = STEP_LABELS[step.type] || step.label || ASSISTANT_LABEL;
+  const shell = createMsgShell(roleName, step.type === "tool_call" ? { copySource: ".tool-query-line" } : {});
+  shell.inner.append(createAvatar(avatarKind), shell.body);
+
+  if (step.type === "thinking") {
+    shell.card.appendChild(buildThinkingStepPanel(step.thinking || "", step.label, {
+      streaming: step.streaming,
+      streamStatus,
+    }));
+  } else if (step.type === "tool_call") {
+    const q = document.createElement("div");
+    q.className = "tool-query-line";
+    q.textContent = step.searching
+      ? `Searching the web for “${step.query}”…`
+      : `Query: “${step.query}”`;
+    shell.card.appendChild(q);
+    if (step.searching) {
+      const searching = document.createElement("div");
+      searching.className = "tool-searching";
+      searching.innerHTML = '<span class="search-spinner" aria-hidden="true"></span><span>Running search via Exa MCP…</span>';
+      shell.card.appendChild(searching);
+    }
+  } else if (step.type === "tool_result") {
+    const details = document.createElement("details");
+    details.className = "tool-result-disclosure";
+    details.open = false;
+    const summary = document.createElement("summary");
+    const count = step.resultCount ?? 0;
+    const statusSuffix = step.status && step.status !== "ok" ? ` (${step.status})` : "";
+    const label = document.createElement("span");
+    label.className = "tool-result-label";
+    label.textContent = `${count} result${count === 1 ? "" : "s"} for “${step.query}”${statusSuffix}`;
+    const chev = icon("chevron");
+    chev.classList.add("chevron");
+    summary.append(label, chev);
+    appendSummaryCopy(summary, { copySource: ".tool-result-content" });
+    const body = document.createElement("div");
+    body.className = "tool-result-content";
+    body.textContent = step.content || "";
+    details.append(summary, body);
+    shell.card.appendChild(details);
+  } else if (step.type === "answer") {
+    const response = document.createElement("div");
+    response.className = "response-content";
+    setResponseContent(response, step.content || "", { streaming: step.streaming && !!step.content });
+    shell.card.appendChild(response);
+    if (step.streaming && streamStatus) {
+      const footer = document.createElement("div");
+      footer.className = "msg-footer stream-footer";
+      const stats = document.createElement("span");
+      stats.className = "msg-stats-inline";
+      stats.textContent = streamStatus;
+      footer.appendChild(stats);
+      shell.card.appendChild(footer);
+    } else if (!step.streaming) {
+      shell.card.appendChild(buildMsgFooter(step.content || "", step.meta));
+    }
+  }
+
+  wrap.appendChild(shell.inner);
+  return wrap;
+}
+
+function updateAgentStepElement(el, step, streamStatus = "") {
+  el.classList.toggle("streaming", !!step.streaming);
+  const card = el.querySelector(".msg-card");
+  if (!card) return;
+
+  if (step.type === "thinking") {
+    const label = step.label || "Thinking";
+    const labelEl = el.querySelector(".think-label");
+    if (labelEl) {
+      labelEl.textContent = step.streaming && !step.thinking ? `${label}…` : label;
+    }
+    const thinkContent = el.querySelector(".think-content");
+    if (thinkContent) {
+      if (step.streaming && !step.thinking) {
+        if (!thinkContent.querySelector(".thinking-dots")) {
+          thinkContent.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div>';
+        }
+      } else {
+        thinkContent.textContent = step.thinking || "";
+      }
+    }
+    let footer = el.querySelector(".stream-footer");
+    if (step.streaming && streamStatus) {
+      if (!footer) {
+        footer = document.createElement("div");
+        footer.className = "msg-footer stream-footer";
+        const stats = document.createElement("span");
+        stats.className = "msg-stats-inline";
+        footer.appendChild(stats);
+        card.appendChild(footer);
+      }
+      footer.querySelector(".msg-stats-inline").textContent = streamStatus;
+    } else {
+      footer?.remove();
+    }
+    return;
+  }
+
+  if (step.type === "tool_call") {
+    const q = el.querySelector(".tool-query-line");
+    if (q) {
+      q.textContent = step.searching
+        ? `Searching the web for “${step.query}”…`
+        : `Query: “${step.query}”`;
+    }
+    let searching = el.querySelector(".tool-searching");
+    if (step.searching) {
+      if (!searching) {
+        searching = document.createElement("div");
+        searching.className = "tool-searching";
+        searching.innerHTML = '<span class="search-spinner" aria-hidden="true"></span><span>Running search via Exa MCP…</span>';
+        card.appendChild(searching);
+      }
+    } else {
+      searching?.remove();
+    }
+    return;
+  }
+
+  if (step.type === "answer") {
+    const response = el.querySelector(".response-content");
+    if (response) {
+      setResponseContent(response, step.content || "", { streaming: step.streaming && !!step.content });
+    }
+    let footer = el.querySelector(".stream-footer");
+    if (step.streaming && streamStatus) {
+      if (!footer) {
+        footer = document.createElement("div");
+        footer.className = "msg-footer stream-footer";
+        const stats = document.createElement("span");
+        stats.className = "msg-stats-inline";
+        footer.appendChild(stats);
+        card.appendChild(footer);
+      }
+      footer.querySelector(".msg-stats-inline").textContent = streamStatus;
+    } else if (!step.streaming) {
+      footer?.remove();
+      if (!card.querySelector(".msg-footer:not(.stream-footer)")) {
+        card.appendChild(buildMsgFooter(step.content || "", step.meta));
+      }
+    }
+  }
 }
 
 /* ── Rendering ── */
@@ -1813,15 +2571,40 @@ function syncUIFromSession() {
 }
 
 function updateGrammarUI() {
+  const webOn = webSearchEffective() || state.webSearchPreferred;
   document.querySelectorAll("#grammar-modes .seg-btn").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.mode === state.grammarMode);
+    btn.disabled = webOn && btn.dataset.mode !== "off";
   });
-  $("grammar-json-wrap").classList.toggle("show", state.grammarMode === "json");
-  $("grammar-ebnf-wrap").classList.toggle("show", state.grammarMode === "ebnf");
+  $("grammar-json-wrap").classList.toggle("show", state.grammarMode === "json" && !webOn);
+  $("grammar-ebnf-wrap").classList.toggle("show", state.grammarMode === "ebnf" && !webOn);
   $("max-tokens").value = state.maxNewTokens;
+  updateWebSearchUI();
 }
 
-function renderChat() {
+function updateWebSearchUI() {
+  const toggle = $("web-search-toggle");
+  if (!toggle) return;
+  toggle.checked = state.webSearchPreferred;
+  const def = activeModelDef();
+  const canUse = !!def?.supportsTools;
+  toggle.disabled = !canUse;
+  const help = $("web-search-help");
+  const tipEl = $("web-search-help-text");
+  if (help && tipEl) {
+    let tip = "Enable to let the model search the web via Exa MCP when needed.";
+    if (!canUse) {
+      tip = "Web search requires Gemma 4 E2B (select in model picker).";
+    } else if (state.webSearchPreferred && !state.model) {
+      tip = "Load Gemma 4 E2B to use web search. Queries are sent to Exa MCP.";
+    } else if (webSearchEffective()) {
+      tip = "Web search active. Queries are sent to Exa MCP (third-party). Grammar mode is disabled.";
+    }
+    tipEl.textContent = tip;
+  }
+}
+
+function renderChat({ scrollForce = false } = {}) {
   const session = activeSession();
   const container = $("chat-messages");
   const empty = $("empty-state");
@@ -1835,145 +2618,431 @@ function renderChat() {
   }
   empty.style.display = "none";
 
-  for (const msg of session.messages) {
+  for (let i = 0; i < session.messages.length; i++) {
+    const msg = session.messages[i];
     if (msg.role === "user") {
-      container.appendChild(buildUserMessage(msg.content));
+      container.appendChild(buildUserMessage(msg.content, i));
+    } else if (msg.agentSteps?.length) {
+      for (const step of msg.agentSteps) {
+        container.appendChild(buildAgentStepMessage(step));
+      }
     } else {
       container.appendChild(buildAssistantMessage(msg));
     }
   }
   mountWebGpuBanner();
-  $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
+  scrollChatToBottom(scrollForce);
 }
 
 /* ── Streaming ── */
 
-let renderScheduled = false, renderState = null;
+let renderScheduled = false;
+/** @type {object|null} */
+let renderState = null;
+/** @type {object|null} */
+let activeStreamCtx = null;
+let phasePulseTimer = null;
+
+function stopPhasePulse() {
+  if (phasePulseTimer) {
+    clearInterval(phasePulseTimer);
+    phasePulseTimer = null;
+  }
+}
+
+function startPhasePulse() {
+  stopPhasePulse();
+  phasePulseTimer = setInterval(() => {
+    if (renderState && (renderState.streamPhase === "searching" || renderState.prefillActive)) {
+      scheduleStreamRender();
+    } else if (
+      agentStepStore &&
+      activeStreamCtx &&
+      (activeStreamCtx.streamPhase === "searching"
+        || activeStreamCtx.prefillActive
+        || activeStreamCtx.streamPhase === "generating")
+    ) {
+      scheduleAgentStepsRender(activeStreamCtx);
+    } else {
+      stopPhasePulse();
+    }
+  }, 250);
+}
+
+function ensureStreamSearchBanner(msgEl) {
+  let banner = msgEl.querySelector(".stream-search-banner");
+  if (banner) return banner;
+  const card = msgEl.querySelector(".msg-card");
+  const response = msgEl.querySelector(".response-content");
+  banner = document.createElement("div");
+  banner.className = "stream-search-banner";
+  banner.hidden = true;
+  banner.innerHTML = '<span class="search-spinner" aria-hidden="true"></span><span>Searching the web for <strong class="search-query"></strong>…</span>';
+  card.insertBefore(banner, response);
+  return banner;
+}
 
 function createStreamingMessage() {
   $("empty-state").style.display = "none";
   $("chat-messages").appendChild(buildAssistantMessage(null, { streaming: true }));
   mountWebGpuBanner();
-  $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
+  scrollChatToBottom(true);
 }
 
 function scheduleStreamRender() {
   if (renderScheduled) return;
   renderScheduled = true;
-  requestAnimationFrame(() => { renderScheduled = false; if (renderState) renderStreamFrame(renderState); });
+  requestAnimationFrame(() => {
+    renderScheduled = false;
+    if (renderState) renderStreamFrame(renderState);
+  });
 }
 
-function renderStreamFrame({ raw, tokCount, tps, ttft }) {
-  const { thinking, output } = splitThinking(raw);
+/**
+ * @param {object} state
+ */
+function renderStreamFrame(state) {
+  const {
+    raw = "",
+    thinkingAccum = "",
+    streamPhase = "generating",
+    searchQuery = "",
+    searchStartedAt = 0,
+    tracker = null,
+    prefillActive = false,
+    tokCount = 0,
+    tps = 0,
+  } = state;
+
   const msgEl = $("streaming-msg");
   if (!msgEl) return;
 
-  const tokStr = formatStreamStats({ tokCount, tps, ttft: null });
-  const fullStr = formatStreamStats({ tokCount, tps, ttft });
+  const { thinking, output } = splitThinking(raw);
+  const displayThinking = thinkingAccum || thinking;
+  const snap = tracker?.snapshot?.() || {};
+  const phaseOpts = {
+    streamPhase,
+    prefillActive,
+    prefillTokens: snap.prefillTokens,
+    prefillSec: snap.prefillSec,
+    cachedTokens: snap.cachedTokens,
+    searchStartedAt,
+    tokCount,
+    tps,
+    ttft: snap.ttft,
+    displayThinking,
+  };
+  const activeStatus = formatActivePhaseStatus(phaseOpts);
+  const thinkPanelLabel = formatThinkPanelLabel(phaseOpts);
+
+  const searchBanner = ensureStreamSearchBanner(msgEl);
+  if (streamPhase === "searching") {
+    searchBanner.hidden = false;
+    const qEl = searchBanner.querySelector(".search-query");
+    if (qEl) qEl.textContent = searchQuery || "…";
+  } else {
+    searchBanner.hidden = true;
+  }
 
   const disclosure = msgEl.querySelector(".think-disclosure");
   const thinkContent = msgEl.querySelector(".think-content");
   const thinkLabelEl = msgEl.querySelector(".think-label");
   const response = msgEl.querySelector(".response-content");
   const footer = msgEl.querySelector(".stream-footer");
-  const stats = msgEl.querySelector(".msg-stats-inline");
+  let stats = msgEl.querySelector(".msg-stats-inline");
+  let phaseLine = footer?.querySelector(".stream-phase-line");
 
-  if ((thinking || !output) && modelSupportsThinking()) {
+  const showThinkPanel = modelSupportsThinking() || displayThinking;
+  if (showThinkPanel) {
     if (!disclosure) {
       const card = msgEl.querySelector(".msg-card");
-      const disc = buildThinkingDisclosure(thinking, null, { streaming: true, open: true });
-      card.insertBefore(disc, response);
+      const disc = buildThinkingDisclosure(displayThinking, null, { streaming: true, open: true });
+      if (disc) card.insertBefore(disc, response);
     }
     if (thinkContent) {
-      if (thinking) thinkContent.textContent = thinking;
-      else thinkContent.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div>';
+      if (streamPhase === "searching") {
+        thinkContent.innerHTML = displayThinking
+          ? ""
+          : '<div class="thinking-dots"><span></span><span></span><span></span></div>';
+        if (displayThinking) thinkContent.textContent = displayThinking;
+      } else if (displayThinking) {
+        thinkContent.textContent = displayThinking;
+      } else if (streamPhase === "prefill" || streamPhase === "generating") {
+        thinkContent.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div>';
+      } else {
+        thinkContent.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div>';
+      }
     }
     if (thinkLabelEl) {
-      thinkLabelEl.textContent = thinking
-        ? formatStreamStats({ tokCount, tps, ttft: null, prefix: "Thinking…" })
-        : "Thinking…";
+      thinkLabelEl.textContent = thinkPanelLabel;
     }
-    if (disclosure) disclosure.open = !output;
-  } else if (disclosure) {
-    disclosure.open = false;
-    if (thinkLabelEl && thinking) {
-      thinkLabelEl.textContent = formatStreamStats({ tokCount, tps, ttft: null, prefix: "Thought" });
-    }
+    const discEl = msgEl.querySelector(".think-disclosure");
+    if (discEl) discEl.open = true;
   }
 
   if (response) {
-    response.textContent = output;
-    if (output) {
-      const c = document.createElement("span");
-      c.className = "stream-cursor";
-      response.appendChild(c);
-    }
+    setResponseContent(response, output, { streaming: streamPhase === "generating" && !!output });
   }
 
-  let respMeta = msgEl.querySelector(".response-stream-meta");
-  if (output) {
-    if (!respMeta) {
-      respMeta = document.createElement("div");
-      respMeta.className = "response-stream-meta";
-      response.insertAdjacentElement("afterend", respMeta);
+  if (footer) {
+    if (!stats) {
+      stats = document.createElement("span");
+      stats.className = "msg-stats-inline";
+      footer.appendChild(stats);
     }
-    respMeta.textContent = tokStr;
-    respMeta.hidden = false;
-  } else if (respMeta) {
-    respMeta.hidden = true;
+    if (phaseLine) phaseLine.hidden = true;
+    stats.textContent = activeStatus;
   }
 
-  if (stats) stats.textContent = fullStr;
-  if (footer && output) {
-    const copyBtn = footer.querySelector("[data-copy]");
-    if (!copyBtn) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "footer-action";
-      btn.dataset.copy = "1";
-      btn.append(icon("copy"));
-      const copyLabel = document.createElement("span");
-      copyLabel.className = "copy-label";
-      copyLabel.textContent = " Copy";
-      btn.append(copyLabel);
-      btn._copyText = output;
-      footer.insertBefore(btn, stats);
-    } else {
-      copyBtn._copyText = output;
-    }
-  }
+  msgEl.querySelector(".response-stream-meta")?.remove();
 
-  if (state.busy) setModelStatus("busy", fullStr);
+  if (state.busy) setModelStatus("busy", activeStatus);
 
-  $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
+  scrollChatToBottom();
 }
 
 function removeStreamingMessage() {
+  stopPhasePulse();
   $("streaming-msg")?.remove();
 }
 
-/* ── Copy handler ── */
-
-$("chat-messages").addEventListener("click", async e => {
-  const btn = e.target.closest("[data-copy]");
-  if (!btn) return;
-  const text = btn._copyText || btn.closest(".msg.assistant")?.querySelector(".response-content")?.textContent || "";
-  try {
-    await navigator.clipboard.writeText(text);
-    const label = btn.querySelector(".copy-label") || (() => {
-      const span = document.createElement("span");
-      span.className = "copy-label";
-      span.textContent = " Copy";
-      btn.appendChild(span);
-      return span;
-    })();
-    label.textContent = " Copied";
-    toast("Copied to clipboard");
-    setTimeout(() => { label.textContent = " Copy"; }, 1500);
-  } catch {
-    toast("Copy failed");
+/**
+ * @param {object} chunk
+ * @param {object} ctx
+ * @param {{ trackMetrics?: boolean }} [opts]
+ */
+function handleGenerationChunk(chunk, ctx, { trackMetrics = true } = {}) {
+  if (isPrefillChunk(chunk)) {
+    if (trackMetrics) {
+      if (chunk.status === "start") ctx.tracker.onPrefillStart(chunk);
+      if (chunk.status === "done") ctx.tracker.onPrefillDone(chunk);
+    }
+    if (chunk.status === "done") {
+      ctx.prefillActive = false;
+    } else {
+      ctx.prefillActive = true;
+    }
+    ctx.streamPhase = "prefill";
+    startPhasePulse();
+    return;
   }
-});
+
+  ctx.streamPhase = "generating";
+  ctx.prefillActive = false;
+  if (trackMetrics) ctx.tracker.onToken();
+  ctx.raw = chunk.rawText ?? chunk.text ?? ctx.raw;
+  ctx.phaseThinking = splitThinking(ctx.raw).thinking || "";
+  ctx.generatedTokens = trackMetrics
+    ? ctx.tracker.generatedTokens
+    : Math.max(ctx.generatedTokens + 1, ctx.tracker.generatedTokens);
+  const snap = ctx.tracker.snapshot();
+  ctx.tps = snap.tps ? Number(snap.tps) : 0;
+  startPhasePulse();
+}
+
+function initStreamContext() {
+  const tracker = new GenerationTracker();
+  return {
+    tracker,
+    raw: "",
+    thinkingAccum: "",
+    thinkingPrior: "",
+    streamPhase: "prefill",
+    prefillActive: true,
+    agentPhase: "planning",
+    phaseThinking: "",
+    searchQuery: "",
+    searchStartedAt: 0,
+    generatedTokens: 0,
+    tps: 0,
+  };
+}
+
+function syncThinkingAccum(ctx) {
+  const split = splitThinking(ctx.raw);
+  const parts = [ctx.thinkingPrior, split.thinking].filter(Boolean);
+  ctx.thinkingAccum = parts.join("\n\n---\n\n");
+}
+
+function snapshotThinkingFromRaw(ctx, label) {
+  const split = splitThinking(ctx.raw);
+  if (split.thinking) {
+    ctx.thinkingPrior = appendThinkingTrace(ctx.thinkingPrior, split.thinking, { label });
+  }
+}
+
+function mergeTurnThinking(result, streamCtx, raw) {
+  const fromResult = (result?.thinking || "").trim();
+  if (fromResult) return fromResult;
+  const fromStream = (streamCtx.thinkingAccum || "").trim();
+  if (fromStream) return fromStream;
+  const fromRaw = splitThinking(result?.raw || raw || streamCtx.raw || "").thinking.trim();
+  if (fromRaw) {
+    return streamCtx.thinkingPrior
+      ? `${streamCtx.thinkingPrior}\n\n---\n\n${fromRaw}`
+      : fromRaw;
+  }
+  return (streamCtx.thinkingPrior || "").trim();
+}
+
+function publishStreamContext(ctx) {
+  const snap = ctx.tracker.snapshot();
+  renderState = {
+    raw: ctx.raw,
+    thinkingAccum: ctx.thinkingAccum,
+    streamPhase: ctx.streamPhase,
+    searchQuery: ctx.searchQuery,
+    searchStartedAt: ctx.searchStartedAt,
+    tracker: ctx.tracker,
+    prefillActive: ctx.prefillActive,
+    tokCount: ctx.generatedTokens,
+    tps: ctx.tps,
+    busy: true,
+  };
+  scheduleStreamRender();
+}
+
+/** @type {AgentStepStore|null} */
+let agentStepStore = null;
+/** @type {HTMLElement[]} */
+let agentStepEls = [];
+let agentStepsRenderScheduled = false;
+let lastAgentStepsStructure = "";
+
+function clearAgentStepsUI() {
+  agentStepStore = null;
+  agentStepEls = [];
+  agentStepsRenderScheduled = false;
+  lastAgentStepsStructure = "";
+}
+
+function agentStepsStructure(steps) {
+  return steps.map(s => `${s.type}:${s.label || ""}:${s.query || ""}`).join("|");
+}
+
+function rebuildAgentStepElements(steps, container, streamStatus) {
+  for (const el of agentStepEls) el.remove();
+  agentStepEls = steps.map(step => {
+    const el = buildAgentStepMessage(step, { streamStatus: step.streaming ? streamStatus : "" });
+    container.appendChild(el);
+    return el;
+  });
+}
+
+function streamStatusFromContext(ctx) {
+  const snap = ctx.tracker?.snapshot?.() || {};
+  const { thinking, output } = splitThinking(ctx.raw || "");
+  const displayThinking = ctx.thinkingAccum || thinking;
+  return formatActivePhaseStatus({
+    streamPhase: ctx.streamPhase,
+    prefillActive: ctx.prefillActive,
+    prefillTokens: snap.prefillTokens,
+    prefillSec: snap.prefillSec,
+    cachedTokens: snap.cachedTokens,
+    searchStartedAt: ctx.searchStartedAt,
+    tokCount: ctx.generatedTokens,
+    tps: ctx.tps,
+    ttft: snap.ttft,
+    displayThinking: output ? "" : displayThinking,
+  });
+}
+
+function syncAgentStepsFromStore(ctx) {
+  if (!agentStepStore) return;
+  const steps = agentStepStore.steps;
+  const container = $("chat-messages");
+  const streamStatus = streamStatusFromContext(ctx);
+  const structure = agentStepsStructure(steps);
+
+  if (steps.length < agentStepEls.length) {
+    lastAgentStepsStructure = structure;
+    rebuildAgentStepElements(steps, container, streamStatus);
+  } else if (steps.length > agentStepEls.length) {
+    for (let i = agentStepEls.length; i < steps.length; i++) {
+      const el = buildAgentStepMessage(steps[i], {
+        streamStatus: steps[i].streaming ? streamStatus : "",
+      });
+      container.appendChild(el);
+      agentStepEls.push(el);
+    }
+    lastAgentStepsStructure = structure;
+  } else if (structure !== lastAgentStepsStructure) {
+    lastAgentStepsStructure = structure;
+    rebuildAgentStepElements(steps, container, streamStatus);
+  }
+
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    if (!agentStepEls[i]) continue;
+    const status = step.streaming ? streamStatus : "";
+    if (ctx.busy || step.streaming || agentStepEls[i].classList.contains("streaming")) {
+      updateAgentStepElement(agentStepEls[i], step, status);
+    }
+  }
+
+  scrollChatToBottom();
+  if (ctx.busy) setModelStatus("busy", streamStatus);
+}
+
+function visibleStreamAnswer(raw, output) {
+  if (hasUnclosedThoughtChannel(raw)) return "";
+  return sanitizeExternalText(output);
+}
+
+function shouldStreamAnswer(raw, output) {
+  const visible = visibleStreamAnswer(raw, output);
+  if (!visible) return false;
+  if (looksLikeToolCallSyntax(visible)) return false;
+  return true;
+}
+
+function syncAgentStepsFromStream(ctx) {
+  if (!agentStepStore) return;
+  const raw = ctx.raw || "";
+  const split = splitThinking(raw);
+  const output = split.output || "";
+  const phaseThinking = ctx.phaseThinking || split.thinking || "";
+  const displayThinking = (ctx.thinkingAccum || phaseThinking || "").trim();
+  const toolish = looksLikeToolCallSyntax(output) || looksLikeToolCallSyntax(raw);
+  const thoughtOpen = hasUnclosedThoughtChannel(raw);
+  const visibleAnswer = visibleStreamAnswer(raw, output);
+  const hasAnswerStep = agentStepStore.steps.some((s) => s.type === "answer");
+
+  const applyStream = (phase) => {
+    if (ctx.agentPhase !== phase) return;
+    if (displayThinking) {
+      agentStepStore.updateThinking(displayThinking);
+    }
+    if (toolish) {
+      agentStepStore.removeSpuriousAnswerSteps();
+    } else if (shouldStreamAnswer(raw, output)) {
+      agentStepStore.updateAnswer(visibleAnswer, {
+        closeThinking: !hasAnswerStep && !thoughtOpen,
+      });
+    }
+  };
+
+  applyStream("synthesis");
+  applyStream("planning");
+
+  publishAgentStreamContext(ctx);
+}
+
+function scheduleAgentStepsRender(ctx) {
+  if (agentStepsRenderScheduled) return;
+  agentStepsRenderScheduled = true;
+  requestAnimationFrame(() => {
+    agentStepsRenderScheduled = false;
+    syncAgentStepsFromStore(ctx);
+  });
+}
+
+function publishAgentStreamContext(ctx) {
+  ctx.busy = true;
+  scheduleAgentStepsRender(ctx);
+}
+
+/* ── Copy handler: wired on each button via createCopyButton / performCopy ── */
 
 /* ── Send ── */
 
@@ -1991,6 +3060,211 @@ async function switchSession(id) {
   await applyModelSelection(modelId, { silent: true, persistToSession: false });
   resetLoadedModel();
   $("sidebar").classList.remove("open");
+}
+
+async function runAssistantGeneration(session) {
+  const userMessage = lastUserMessageContent(session);
+  state.busy = true;
+  state.abort = new AbortController();
+  updateComposerState();
+  setModelStatus("busy", "Starting…");
+
+  const useAgent = webSearchEffective();
+  /** @type {ReturnType<typeof initStreamContext>} */
+  let streamCtx = initStreamContext();
+  activeStreamCtx = streamCtx;
+
+  if (useAgent) {
+    $("empty-state").style.display = "none";
+    clearAgentStepsUI();
+    agentStepStore = new AgentStepStore();
+    mountWebGpuBanner();
+  } else {
+    createStreamingMessage();
+    publishStreamContext(streamCtx);
+  }
+
+  let raw = "";
+  let thinking = "";
+  let output = "";
+  /** @type {object[]} */
+  let toolTrace = [];
+  /** @type {object[]|undefined} */
+  let agentTranscript;
+  /** @type {object|null} */
+  let finalMetrics = null;
+  let result = null;
+
+  try {
+    if (useAgent) {
+      const baseMessages = buildAgentMessages(session, { userMessage });
+      result = await runAgentTurn({
+        model: state.model,
+        messages: baseMessages,
+        tools: WEB_SEARCH_TOOLS,
+        maxNewTokens: state.maxNewTokens,
+        signal: state.abort.signal,
+        getTracker: () => streamCtx.tracker,
+        searchFn: (query, opts) => defaultSearchProvider.search(query, opts),
+        onStream: (chunk) => {
+          handleGenerationChunk(chunk, streamCtx, { trackMetrics: false });
+          syncThinkingAccum(streamCtx);
+          syncAgentStepsFromStream(streamCtx);
+        },
+        onPhase: ({ phase, query, resultText, resultCount, status }) => {
+          if (phase === "generate") {
+            streamCtx.agentPhase = "planning";
+            streamCtx.phaseThinking = "";
+            agentStepStore.beginThinking("Planning");
+            streamCtx.tracker = new GenerationTracker();
+            streamCtx.streamPhase = "prefill";
+            streamCtx.prefillActive = true;
+            streamCtx.raw = "";
+            streamCtx.generatedTokens = 0;
+            syncThinkingAccum(streamCtx);
+            publishAgentStreamContext(streamCtx);
+          } else if (phase === "host_resolve") {
+            streamCtx.agentPhase = "search";
+            streamCtx.searchQuery = query || "";
+            streamCtx.streamPhase = "searching";
+            streamCtx.searchStartedAt = performance.now();
+            streamCtx.prefillActive = false;
+            startPhasePulse();
+            publishAgentStreamContext(streamCtx);
+          } else if (phase === "tool_start") {
+            streamCtx.agentPhase = "search";
+            snapshotThinkingFromRaw(streamCtx, "Planning");
+            const split = splitThinking(streamCtx.raw || "");
+            agentStepStore.updateThinking(streamCtx.thinkingAccum || split.thinking || "");
+            agentStepStore.addToolCall(query || "");
+            streamCtx.streamPhase = "searching";
+            streamCtx.searchQuery = query || "";
+            streamCtx.searchStartedAt = performance.now();
+            streamCtx.prefillActive = false;
+            startPhasePulse();
+            publishAgentStreamContext(streamCtx);
+          } else if (phase === "tool_end") {
+            agentStepStore.addToolResult({
+              query: query || "",
+              content: resultText || "",
+              resultCount: resultCount ?? 0,
+              status: status || "ok",
+            });
+            streamCtx.streamPhase = "prefill";
+            streamCtx.prefillActive = true;
+            streamCtx.raw = "";
+            streamCtx.phaseThinking = "";
+            syncThinkingAccum(streamCtx);
+            publishAgentStreamContext(streamCtx);
+          } else if (phase === "synthesize") {
+            streamCtx.agentPhase = "synthesis";
+            streamCtx.phaseThinking = "";
+            agentStepStore.beginThinking("Synthesis");
+            streamCtx.tracker = new GenerationTracker();
+            streamCtx.streamPhase = "prefill";
+            streamCtx.prefillActive = true;
+            streamCtx.raw = "";
+            streamCtx.generatedTokens = 0;
+            syncThinkingAccum(streamCtx);
+            publishAgentStreamContext(streamCtx);
+          }
+        },
+      });
+      raw = result.raw || streamCtx.raw;
+      thinking = mergeTurnThinking(result, streamCtx, raw);
+      output = result.content || "";
+      toolTrace = result.toolTrace || [];
+      agentTranscript = result.agentTranscript;
+      finalMetrics = result.metrics || streamCtx.tracker.snapshot();
+      if (result.aborted) {
+        const split = splitThinking(raw);
+        thinking = split.thinking || thinking;
+        output = split.output || output;
+      }
+    } else {
+      const stream = state.model.generate(buildMessages(session), {
+        maxNewTokens: state.maxNewTokens,
+        enableThinking: modelSupportsThinking(),
+        signal: state.abort.signal,
+      });
+      for await (const chunk of stream) {
+        handleGenerationChunk(chunk, streamCtx);
+        syncThinkingAccum(streamCtx);
+        publishStreamContext(streamCtx);
+      }
+      raw = streamCtx.raw;
+      finalMetrics = streamCtx.tracker.snapshot();
+      const split = splitThinking(raw);
+      thinking = split.thinking;
+      output = split.output;
+    }
+  } catch (err) {
+    console.error(err);
+    const fallback = generationErrorFallback(err, { raw: streamCtx.raw || raw });
+    raw = fallback.raw;
+    if (fallback.toast) toast(fallback.toast);
+    const split = splitThinking(raw);
+    thinking = split.thinking;
+    output = split.output;
+  } finally {
+    stopPhasePulse();
+    finalMetrics = finalMetrics || streamCtx.tracker.snapshot();
+    const meta = {
+      tokens: finalMetrics?.tokens ?? streamCtx.generatedTokens,
+      tps: finalMetrics?.tps ?? "0",
+      ttft: finalMetrics?.ttft ?? "0",
+      prefillSec: finalMetrics?.prefillSec ?? null,
+      prefillTokens: finalMetrics?.prefillTokens ?? 0,
+      cachedTokens: finalMetrics?.cachedTokens ?? 0,
+    };
+    if (!useAgent) {
+      const split = splitThinking(raw);
+      thinking = split.thinking;
+      output = split.output;
+    }
+    if (looksLikeToolCallSyntax(output || raw)) {
+      const cleaned = stripToolCallSyntax(output || raw);
+      if (!useAgent && userWantsWebSearch(userMessage)) {
+        toast("Enable Web Search in the composer to run tool calls.");
+      }
+      if (cleaned) output = cleaned;
+      else if (looksLikeToolCallSyntax(output || raw)) {
+        output = "The model tried to run a web search. Turn on Web Search and try again.";
+      }
+    }
+    if (useAgent) {
+      if (agentStepStore) {
+        agentStepStore.finalizeAnswer({
+          content: safeAssistantContent(output || raw) || output || raw || "(no output)",
+          meta,
+        });
+      }
+    } else {
+      removeStreamingMessage();
+    }
+    const assistantMsg = {
+      role: "assistant",
+      content: output || raw || "(no output)",
+      thinking: thinking || "",
+      meta,
+    };
+    if (useAgent && agentStepStore) {
+      assistantMsg.agentSteps = agentStepStore.snapshot();
+    }
+    if (toolTrace.length) assistantMsg.toolTrace = toolTrace;
+    if (result?.searchMemory) assistantMsg.searchMemory = result.searchMemory;
+    if (agentTranscript?.length) assistantMsg.agentTranscript = agentTranscript;
+    session.messages.push(assistantMsg);
+    await persistSession(session);
+    clearAgentStepsUI();
+    activeStreamCtx = null;
+    renderChat();
+    state.busy = false;
+    state.abort = null;
+    state.agentPhase = "";
+    restoreIdleStatus();
+    updateComposerState();
+  }
 }
 
 async function sendMessage() {
@@ -2021,59 +3295,9 @@ async function sendMessage() {
 
   input.value = "";
   input.style.height = "auto";
-  renderChat();
+  renderChat({ scrollForce: true });
 
-  state.busy = true;
-  state.abort = new AbortController();
-  updateComposerState();
-  setModelStatus("busy", "Generating…");
-  createStreamingMessage();
-
-  let raw = "", startedAt = 0, firstTokenAt = 0, generatedTokens = 0;
-  try {
-    const stream = state.model.generate(buildMessages(session), {
-      maxNewTokens: state.maxNewTokens,
-      signal: state.abort.signal,
-    });
-    startedAt = performance.now();
-    for await (const { text: streamed } of stream) {
-      const now = performance.now();
-      if (!firstTokenAt) firstTokenAt = now;
-      generatedTokens++;
-      raw = streamed;
-      const decodeSec = Math.max((now - firstTokenAt) / 1000, 1e-9);
-      const tps = generatedTokens > 1 ? Math.round((generatedTokens - 1) / decodeSec) : 0;
-      renderState = {
-        raw, tokCount: generatedTokens, tps,
-        ttft: firstTokenAt ? ((firstTokenAt - startedAt) / 1000).toFixed(1) : null,
-      };
-      scheduleStreamRender();
-    }
-  } catch (err) {
-    console.error(err);
-    const fallback = generationErrorFallback(err, { raw });
-    raw = fallback.raw;
-    if (fallback.toast) toast(fallback.toast);
-  } finally {
-    const endedAt = performance.now();
-    const decodeSec = Math.max((endedAt - firstTokenAt) / 1000, 1e-9);
-    const tps = generatedTokens > 1 ? ((generatedTokens - 1) / decodeSec).toFixed(1) : "0";
-    const ttft = firstTokenAt ? ((firstTokenAt - startedAt) / 1000).toFixed(1) : "0";
-    const { thinking, output } = splitThinking(raw);
-    removeStreamingMessage();
-    session.messages.push({
-      role: "assistant",
-      content: output || raw || "(no output)",
-      thinking: thinking || "",
-      meta: { tokens: generatedTokens, tps, ttft },
-    });
-    await persistSession(session);
-    renderChat();
-    state.busy = false;
-    state.abort = null;
-    restoreIdleStatus();
-    updateComposerState();
-  }
+  await runAssistantGeneration(session);
 }
 
 /* ── Init ── */
@@ -2114,6 +3338,7 @@ async function init() {
 
   loadPrefs();
   updateGrammarUI();
+  updateWebSearchUI();
   if (!state.sessions.length) await createSession();
   else if (!state.activeSessionId || !state.sessions.find(s => s.id === state.activeSessionId)) {
     state.activeSessionId = state.sessions[0].id;
@@ -2160,7 +3385,27 @@ $("session-search").addEventListener("input", () => {
 });
 
 document.querySelectorAll("#grammar-modes .seg-btn").forEach(btn => {
-  btn.addEventListener("click", () => { state.grammarMode = btn.dataset.mode; savePrefs(); updateGrammarUI(); });
+  btn.addEventListener("click", () => {
+    if (webSearchEffective() || state.webSearchPreferred) {
+      if (btn.dataset.mode !== "off") {
+        toast("Disable web search to use grammar mode.");
+        return;
+      }
+    }
+    state.grammarMode = btn.dataset.mode;
+    savePrefs();
+    updateGrammarUI();
+  });
+});
+
+$("web-search-toggle")?.addEventListener("change", () => {
+  state.webSearchPreferred = $("web-search-toggle").checked;
+  if (state.webSearchPreferred && state.grammarMode !== "off") {
+    state.grammarMode = "off";
+    toast("Grammar mode disabled while web search is on.");
+  }
+  savePrefs();
+  updateGrammarUI();
 });
 
 const debounce = createDebouncer();
