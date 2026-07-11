@@ -4,7 +4,7 @@ import globals from "globals";
 export default [
   js.configs.recommended,
   {
-    files: ["lib/**/*.js", "tests/**/*.js", "vitest.config.js", "eslint.config.js"],
+    files: ["lib/**/*.js", "tests/**/*.js", "scripts/**/*.mjs", "vitest.config.js", "eslint.config.js"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
