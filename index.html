@@ -1231,9 +1231,8 @@ async function createSession(title = "New chat") {
     selectedModelId: state.selectedModelId,
     models: MODELS,
   });
-  await persistSession(session);
   state.activeSessionId = session.id;
-  savePrefs();
+  await persistSession(session);
   return session;
 }
 

@@ -65,9 +65,9 @@ if (alreadyPatched) {
       src = src.replace(GENERATE_INIT_OLD, GENERATE_INIT_NEW);
       changed = true;
     }
-    if (src.includes("let u=[],l=\"\",c=!1,g=!1,m=!this._preserveControlTokens,P=!1")) {
+    if (src.includes(`${GENERATE_VARS_OLD},P=!1`)) {
       src = src.replace(
-        "let u=[],l=\"\",c=!1,g=!1,m=!this._preserveControlTokens,P=!1",
+        `${GENERATE_VARS_OLD},P=!1`,
         `${GENERATE_VARS_NEW},P=!1`,
       );
       changed = true;
