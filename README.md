@@ -1,6 +1,6 @@
 # WebLLM
 
-A private AI chat that runs **entirely in your browser** — no server, no API keys, no data leaving your device. WebLLM is a demo and starting point for local WebGPU inference. Choose a model in the sidebar: **Gemma 4 E2B** (default, ~2.5 GB) or **LFM2.5** 230M / 350M (~150–220 MB, faster).
+A private AI chat that runs **in your browser**. Model inference and chat history stay local; if you enable Web Search, the app sends normalized search queries to the third-party Exa MCP service and displays the returned evidence. WebLLM is a demo and starting point for local WebGPU inference. Choose **Gemma 4 E2B** (default, ~2.5 GB) or **LFM2.5** 230M / 350M (~150–220 MB, faster).
 
 ## Try it live
 
@@ -11,7 +11,7 @@ A private AI chat that runs **entirely in your browser** — no server, no API k
 3. Click **Load model** — the first visit downloads weights from Hugging Face (one-time; ~2.5 GB for Gemma, ~150–220 MB for LFM2.5).
 4. Wait for **Model ready**, then chat. Refresh later and the model loads from your browser cache in seconds.
 
-Everything runs on your device.
+Without Web Search enabled, prompts, inference, and chat history remain on your device. Model weights are downloaded from Hugging Face and cached locally.
 
 ## Credit
 
@@ -25,7 +25,8 @@ The runtime bundles are built on the Hugging Face / Transformers.js ecosystem: `
 - Loads local LLMs once, then caches weights in the browser (per model)
 - Runs inference via **WebGPU** (Chrome, Edge, Safari 18+)
 - Stores chat history in **IndexedDB** on your machine
-- Exports conversations as **OpenAI-style JSON** (`[{ "role", "content" }, …]`) for reuse elsewhere
+- Optional iterative **Web Search** through Exa MCP; search queries and returned snippets leave the browser
+- Exports conversations as **OpenAI Chat Completions JSON**, including `web_search` calls and tool results; the download dialog also offers a full local agent trace
 - Supports system prompts, optional grammar guidance, thinking traces, and dark mode
 
 ## Quick start
@@ -50,11 +51,15 @@ The live demo is hosted on GitHub Pages — see [Try it live](#try-it-live) abov
 
 | Path | Purpose |
 |------|---------|
-| `index.html` | App shell — UI, DOM wiring, model load/generate (imports `lib/*`) |
+| `index.html` | Document shell and styles |
+| `app.js` | UI/DOM wiring, model lifecycle, streaming, and generation |
 | `lib/` | Testable core logic (sessions, messages, cache, prefs, formatting, …) |
 | `gemma-4-e2b.js` | WebGPU runtime for Gemma 4 E2B (`Gemma4Mobile.load`, generate, safetensors cache) |
 | `lfm2_5.js` | WebGPU runtime for LFM2.5 GGUF models (`Lfm2Mobile.load`, shared by 230M & 350M) |
 | `tests/` | Vitest unit tests (no real WebGPU inference) |
+| `docs/architecture.md` | Current architecture and privacy/data-flow record |
+| `scripts/` | Runtime patch and maintenance scripts |
+| `research-e4b/` | Separate, not-yet-integrated Gemma 4 E4B research pack |
 
 Production deploy is still static assets — no bundler. For local development and CI, run `npm install` once to get the test runner.
 
@@ -64,7 +69,7 @@ Production deploy is still static assets — no bundler. For local development a
 npm install
 npm test          # single run
 npm run test:watch
-npm run lint      # ESLint on lib/ and tests/
+npm run lint      # ESLint on the repository
 ```
 
 Tests cover pure logic in `lib/` (message building, session filtering, cache introspection, prefs, formatting, browser detection, etc.) using Vitest and `fake-indexeddb`. Real model load and WebGPU inference are intentionally excluded.
@@ -81,12 +86,13 @@ python3 -m http.server 8080
 
 ### Architecture
 
-- **Static-only:** GitHub Pages (or any static host) serves HTML/JS. The browser fetches model weights directly from Hugging Face's CDN — no backend.
-- **Two-tier cache** (Gemma, safetensors via runtime + `index.html`):
+- **Static-only:** GitHub Pages (or any static host) serves HTML/JS. The browser fetches model weights directly from Hugging Face's CDN — no application backend.
+- **Two-tier cache** (Gemma, safetensors via runtime + `app.js`):
   - **Cache Storage** — tokenizer, config, small JSON assets
   - **IndexedDB** — safetensors weight chunks (~256 KB blobs, HTTP Range requests)
 - **GGUF cache** (LFM2.5) — Cache Storage per model (`webllm-lfm2-v1` for 230M, `webllm-lfm2-350m-v1` for 350M; each with `-headers`)
 - **Chat persistence** — IndexedDB database `webllm-sessions`; `localStorage` keys `webllm:prefs` and `webllm:theme`. Clearing model cache does not delete conversations.
+- **Search exception** — when enabled, `web_search` calls Exa MCP. Search evidence is bounded and sanitized before it is sent back to the local model or rendered.
 
 ### Storage names (v0.0.5+)
 
@@ -108,8 +114,13 @@ Older `gemma4-chat*` names are not migrated (pre-release; users re-download weig
 - `Lfm2Mobile.load(hubId, { revision, cacheName, onProgress })` — LFM2.5 GGUF (dynamic `import("./lfm2_5.js")`)
 - `state.fileOrigin` — disables cache on `file://`; production must use `https://`
 - `lib/messages.js` — `buildMessages(session, grammarConfig)` builds the message list sent to the model
-- `exportSessionOpenAI(session)` — exports portable OpenAI Chat Completions JSON
+- `exportSessionOpenAI(session)` — exports the default portable OpenAI Chat Completions JSON
+- `exportSessionTrace(session)` — exports model context, prompt layers, canonical messages, thinking, metrics, and tool metadata
 - `lib/cache.js` — `getModelCacheSize()`, `checkModelCached()`; prefer over `navigator.storage.estimate()` (underreports on Safari)
+- `lib/agent-loop.js` — generic bounded message/tool loop with lifecycle events
+- `lib/web-search-tool.js` — query normalization, Exa execution, deduplication, and search-result metadata
+- `lib/gemma-adapter.js` — Gemma thinking/tool syntax normalization at the model boundary
+- `scripts/patch-gemma-tool-support.mjs` — regenerates the vendored Gemma runtime patch; run it after changing the inline stop scanner
 
 ### WebGPU probe
 
@@ -117,10 +128,11 @@ On load, the app checks `navigator.gpu`, requests an adapter, and shows browser-
 
 ### Contributing
 
-- Keep the production surface minimal: `index.html` + `lib/` + runtime JS files
+- Keep the production surface minimal: `index.html` + `app.js` + `lib/` + runtime JS files
 - Match existing patterns (vanilla JS, CSS variables, no framework)
 - Run `npm test` before cache- or message-related changes; smoke-test on **HTTPS** before shipping
 - Bump each model's `revision` and `cacheName` in `MODELS` together when changing model weights (Gemma: `GEMMA_REVISION` + `gemma4.cacheName`)
+- Keep `docs/architecture.md` current when the data flow, model registry, persistence shape, or tool protocol changes
 
 ## License
 
