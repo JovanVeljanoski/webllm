@@ -85,6 +85,7 @@ describe("ExaMcpSearchProvider", () => {
     expect(body.method).toBe("tools/call");
     expect(body.params.name).toBe("web_search_exa");
     expect(body.params.arguments.query).toBe("test query");
+    expect(body.params.arguments).not.toHaveProperty("contextMaxCharacters");
 
     expect(out.rawProvider).toBe("exa-mcp");
     expect(out.results).toHaveLength(1);

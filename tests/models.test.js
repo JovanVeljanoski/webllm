@@ -45,4 +45,10 @@ describe("model registry", () => {
     expect(MODELS.lfm2.supportsTools).toBeUndefined();
     expect(MODELS.lfm2_350.supportsTools).toBeUndefined();
   });
+
+  it("declares each runtime context window in tokens", () => {
+    expect(MODELS.gemma4.contextWindowTokens).toBe(131_072);
+    expect(MODELS.lfm2.contextWindowTokens).toBe(128_000);
+    expect(MODELS.lfm2_350.contextWindowTokens).toBe(128_000);
+  });
 });

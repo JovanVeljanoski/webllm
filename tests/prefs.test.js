@@ -39,4 +39,14 @@ describe("prefs", () => {
     const parsed = parsePrefsJson(JSON.stringify({ selectedModelId: "gemma4" }));
     expect(parsed.webSearchPreferred).toBe(false);
   });
+
+  it("drops malformed preference fields", () => {
+    const parsed = parsePrefsJson(JSON.stringify({
+      maxNewTokens: "many",
+      sidebarOpen: [],
+      grammarMode: "unknown",
+      sessionSearch: "ok",
+    }));
+    expect(parsed).toEqual({ webSearchPreferred: false, sessionSearch: "ok" });
+  });
 });

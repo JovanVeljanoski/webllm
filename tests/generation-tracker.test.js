@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { GenerationTracker, appendThinkingTrace } from "../lib/generation-tracker.js";
+import { GenerationTracker } from "../lib/generation-tracker.js";
 
 describe("GenerationTracker", () => {
   /** @type {import('vitest').MockInstance} */
@@ -36,22 +36,5 @@ describe("GenerationTracker", () => {
     nowSpy._advance(500);
     tracker.onToken();
     expect(Number(tracker.snapshot().ttft)).toBeCloseTo(0.5, 1);
-  });
-});
-
-describe("appendThinkingTrace", () => {
-  it("joins multi-step traces with separators", () => {
-    let acc = "";
-    acc = appendThinkingTrace(acc, "plan search", { label: "Planning" });
-    acc = appendThinkingTrace(acc, "summarize", { label: "Synthesis" });
-    expect(acc).toContain("Planning");
-    expect(acc).toContain("summarize");
-    expect(acc).toContain("---");
-  });
-
-  it("replaces duplicate label sections instead of stacking them", () => {
-    let acc = appendThinkingTrace("", "first", { label: "Synthesis" });
-    acc = appendThinkingTrace(acc, "second", { label: "Synthesis" });
-    expect(acc).toBe("Synthesis\nsecond");
   });
 });

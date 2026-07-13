@@ -3,7 +3,7 @@ import { generateToCompletion } from "../lib/gemma-generate.js";
 import { GenerationTracker } from "../lib/generation-tracker.js";
 
 describe("generateToCompletion", () => {
-  it("stops early on bare complete tool call when stopOnToolCall is set", async () => {
+  it("collects the runtime stream without duplicate host-side stopping", async () => {
     const chunks = [
       "call:web_search{query:",
       "latest NBA trades}",
@@ -21,13 +21,12 @@ describe("generateToCompletion", () => {
       },
     };
 
-    const { rawText, stopReason, tokens } = await generateToCompletion(
+    const { rawText, tokens } = await generateToCompletion(
       model,
       [{ role: "user", content: "hi" }],
       { stopOnToolCall: true },
     );
 
-    expect(stopReason).toBe("tool_call");
     expect(tokens).toBe(2);
     expect(rawText).toBe("call:web_search{query:latest NBA trades}");
   });

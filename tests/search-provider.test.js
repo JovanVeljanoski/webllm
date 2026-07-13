@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSearchResultsForModel, formatWebSearchEvidence } from "../lib/search-provider.js";
+import { formatSearchResultsForModel } from "../lib/search-provider.js";
 
 describe("formatSearchResultsForModel", () => {
   it("formats numbered blocks with full snippets by default", () => {
@@ -30,27 +30,16 @@ describe("formatSearchResultsForModel", () => {
   });
 });
 
-describe("formatWebSearchEvidence", () => {
-  it("uses labeled blocks without URLs", () => {
-    const results = [
-      {
-        id: "1",
-        title: "Spain 2-1 Belgium",
-        url: "https://fotmob.test/match",
-        snippet: "Spain beat Belgium 2-1 in the quarterfinal.",
-        publishedAt: "2026-07-10",
-      },
-    ];
-    const evidence = formatWebSearchEvidence("FIFA World Cup latest", results, {
-      retrievedAt: "2026-07-11T00:22:10+02:00",
-      timezone: "Europe/Amsterdam",
-    });
-    expect(evidence).toContain("WEB_SEARCH_EVIDENCE");
-    expect(evidence).toContain("Query: FIFA World Cup latest");
-    expect(evidence).toContain("RESULT 1");
-    expect(evidence).toContain("Title: Spain 2-1 Belgium");
-    expect(evidence).toContain("Source: fotmob.test");
-    expect(evidence).not.toContain("https://");
-    expect(evidence).toContain("END_WEB_SEARCH_EVIDENCE");
+describe("formatSearchResultsForModel safety", () => {
+  it("strips model control tokens without shortening external fields", () => {
+    const out = formatSearchResultsForModel([{
+      title: "<|tool_call>unsafe",
+      url: "https://example.test/" + "a".repeat(3000),
+      snippet: "<|channel> " + "word ".repeat(500),
+    }]);
+    expect(out).not.toContain("<|tool_call>");
+    expect(out).not.toContain("<|channel>");
+    expect(out).toContain("a".repeat(3000));
+    expect(out).toContain("word ".repeat(499).trim());
   });
 });

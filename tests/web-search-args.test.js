@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   dedupeQueries,
   formatQueriesLabel,
+  MAX_SEARCH_QUERY_LENGTH,
   normalizeWebSearchQueries,
-  sameQueries,
+  searchQueryKey,
 } from "../lib/web-search-args.js";
 
 describe("normalizeWebSearchQueries", () => {
@@ -32,6 +33,14 @@ describe("normalizeWebSearchQueries", () => {
       "D",
     ])).toEqual(["A", "B", "C"]);
   });
+
+  it("strips control tokens and bounds query length", () => {
+    const query = normalizeWebSearchQueries({
+      query: `<|tool_call>${"x".repeat(MAX_SEARCH_QUERY_LENGTH + 20)}`,
+    })[0];
+    expect(query).not.toContain("<|tool_call>");
+    expect(query).toHaveLength(MAX_SEARCH_QUERY_LENGTH);
+  });
 });
 
 describe("formatQueriesLabel", () => {
@@ -41,9 +50,9 @@ describe("formatQueriesLabel", () => {
   });
 });
 
-describe("sameQueries", () => {
-  it("compares query sets case-insensitively", () => {
-    expect(sameQueries(["Apple"], ["apple"])).toBe(true);
-    expect(sameQueries(["Apple", "B"], ["B", "Apple"])).toBe(false);
+describe("searchQueryKey", () => {
+  it("normalizes superficial request phrasing for duplicate keys", () => {
+    expect(searchQueryKey("Tell me the latest NBA trades"))
+      .toBe(searchQueryKey("latest NBA trades"));
   });
 });

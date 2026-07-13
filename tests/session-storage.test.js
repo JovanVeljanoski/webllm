@@ -53,4 +53,8 @@ describe("session-storage", () => {
     await dbDelete(db, "s2");
     expect(await dbGetAll(db)).toEqual([]);
   });
+
+  it("reports unavailable IndexedDB instead of throwing synchronously", async () => {
+    await expect(openSessionDB(null)).rejects.toThrow(/IndexedDB is unavailable/);
+  });
 });

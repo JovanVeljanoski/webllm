@@ -40,6 +40,13 @@ describe("formatActivePhaseStatus", () => {
       ttft: "2.3",
     })).toBe("12 tok · 18 tok/s · TTFT 2.3s");
   });
+
+  it("shows immediate stopping feedback", () => {
+    expect(formatActivePhaseStatus({
+      streamPhase: "stopping",
+      tokCount: 12,
+    })).toBe("Stopping…");
+  });
 });
 
 describe("formatThinkPanelLabel", () => {
