@@ -40,10 +40,10 @@ describe("model registry", () => {
     expect(modelSupportsThinking(null, "lfm2")).toBe(false);
   });
 
-  it("enables tools only on Gemma 4", () => {
+  it("enables tools on every supported chat runtime", () => {
     expect(MODELS.gemma4.supportsTools).toBe(true);
-    expect(MODELS.lfm2.supportsTools).toBeUndefined();
-    expect(MODELS.lfm2_350.supportsTools).toBeUndefined();
+    expect(MODELS.lfm2.supportsTools).toBe(true);
+    expect(MODELS.lfm2_350.supportsTools).toBe(true);
   });
 
   it("declares each runtime context window in tokens", () => {

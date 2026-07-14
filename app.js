@@ -34,7 +34,12 @@ import { runAgentTurn } from "./lib/agent-loop.js";
 import {
   countGemmaPromptTokens,
   generateGemmaAssistant,
+  GEMMA_TOOL_PROTOCOL,
 } from "./lib/gemma-adapter.js";
+import {
+  generateLfmAssistant,
+  LFM_TOOL_PROTOCOL,
+} from "./lib/lfm-adapter.js";
 import { fitMessagesToContext } from "./lib/context-window.js";
 import { createWebSearchTool } from "./lib/web-search-tool.js";
 import { agentMessagesToSteps } from "./lib/agent-ui.js";
@@ -102,6 +107,10 @@ function loadedModelDef() {
 
 function modelSupportsThinking() {
   return modelHasThinking(state.loadedModelId, state.selectedModelId);
+}
+
+function toolProtocolForRuntime(runtime) {
+  return runtime === "lfm2" ? LFM_TOOL_PROTOCOL : GEMMA_TOOL_PROTOCOL;
 }
 
 function webSearchEffective() {
@@ -934,6 +943,7 @@ function downloadSession(sessionId, format = "conversation") {
     ? exportSessionTrace(session, {
       agentMode,
       grammarConfig: grammarConfig(),
+      toolProtocol: toolProtocolForRuntime(MODELS[session.modelId]?.runtime),
     })
     : exportSessionOpenAI(session);
   const json = JSON.stringify(payload, null, 2);
@@ -1818,9 +1828,9 @@ function updateWebSearchUI() {
   if (help && tipEl) {
     let tip = "Enable to let the model search the web via Exa MCP when needed.";
     if (!canUse) {
-      tip = "Web search requires Gemma 4 E2B (select in model picker).";
+      tip = "This model does not support tool calling.";
     } else if (state.webSearchPreferred && !state.model) {
-      tip = "Load Gemma 4 E2B to use web search. Queries are sent to Exa MCP.";
+      tip = `Load ${def.name} to use web search. Queries are sent to Exa MCP.`;
     } else if (webSearchEffective()) {
       tip = "Web search active. Queries are sent to Exa MCP (third-party). Grammar mode is disabled.";
     }
@@ -2302,14 +2312,20 @@ async function runAssistantGeneration(session) {
   try {
     if (useAgent) {
       const webSearchTool = createWebSearchTool(defaultSearchProvider);
-      const baseMessages = buildAgentMessages(session, [webSearchTool]);
+      const modelDef = loadedModelDef();
+      const isLfm = modelDef?.runtime === "lfm2";
+      const baseMessages = buildAgentMessages(
+        session,
+        [webSearchTool],
+        { toolProtocol: toolProtocolForRuntime(modelDef?.runtime) },
+      );
       result = await runAgentTurn({
         model: state.model,
         messages: baseMessages,
         tools: [webSearchTool],
-        generateFn: generateGemmaAssistant,
+        generateFn: isLfm ? generateLfmAssistant : generateGemmaAssistant,
         maxNewTokens: state.maxNewTokens,
-        contextWindowTokens: loadedModelDef()?.contextWindowTokens,
+        contextWindowTokens: modelDef?.contextWindowTokens,
         signal: state.abort.signal,
         callIdPrefix: `${session.id || "session"}_${session.messages.length - 1}`,
         getTracker: () => streamCtx.tracker,

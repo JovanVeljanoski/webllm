@@ -16,7 +16,7 @@ small, inspectable implementation of agentic work on private local inference.
 
 - Local inference through WebGPU
 - Gemma 4 E2B with thinking and tool use
-- Smaller LFM2.5 230M and 350M chat models
+- Smaller LFM2.5 230M and 350M models with tool use
 - A bounded model → tool → model agent loop
 - Optional web search through Exa MCP, with no API key
 - Local conversation history and model caching
@@ -35,7 +35,7 @@ WebGPU runtimes.
 2. Choose a model in the sidebar.
 3. Select **Load model**.
 4. Wait for the first download and warm-up, then send a message.
-5. With Gemma selected, enable **Web search** to use the agent loop.
+5. Enable **Web search** to use the agent loop with any supported model.
 
 The first load downloads model weights from Hugging Face. Gemma is about 2.5 GB;
 the LFM models are about 150 MB and 220 MB. The browser caches them for later
@@ -140,7 +140,7 @@ executing half-generated arguments.
 
 ### Web search, end to end
 
-When Web Search is enabled, the effective prompt tells Gemma when to search and
+When Web Search is enabled, the effective prompt tells the model when to search and
 how to write focused queries. A call can contain up to three queries. The search
 tool:
 
@@ -175,8 +175,8 @@ on the runtime. Storage failures degrade to in-memory chat where possible.
 ## Models
 
 - **Gemma 4 E2B** — default, about 2.5 GB, thinking and `web_search`
-- **LFM2.5 230M** — about 150 MB, fastest, chat only
-- **LFM2.5 350M** — about 220 MB, a larger LFM option, chat only
+- **LFM2.5 230M** — about 150 MB, fastest, native LFM tool calling
+- **LFM2.5 350M** — about 220 MB, a larger LFM option with native tool calling
 
 Gemma 4 E4B is research only and is not loadable by the app. The material in
 `research-e4b/` documents that future target.
@@ -206,7 +206,6 @@ worker. Those are possible future improvements, not behavior hidden in the demo.
 
 ## Current limitations
 
-- Tool use is available only with Gemma 4 E2B.
 - Web search is the only tool wired into the UI.
 - Agent quality is constrained by a small local model and its tool-call reliability.
 - Grammar mode is prompt guidance, not token-level constrained decoding.
@@ -247,6 +246,7 @@ Node.js 22 is used in CI.
 - `lib/agent-loop.js` — bounded model/tool transcript loop
 - `lib/messages.js` — effective prompt construction and exports
 - `lib/gemma-adapter.js` — canonical-message and Gemma protocol boundary
+- `lib/lfm-adapter.js` — canonical-message and LFM protocol boundary
 - `lib/tools.js` — tool declarations and prompt policies
 - `lib/web-search-tool.js` — query handling and search execution
 - `lib/` — testable browser-independent application logic

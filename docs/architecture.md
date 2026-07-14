@@ -47,18 +47,32 @@ shortened. Web-search evidence is preserved as returned by the provider.
 
 ## Tool protocol and safety
 
-`lib/gemma-adapter.js` is the model-protocol boundary. It converts canonical messages to the Gemma runtime shape and normalizes Gemma thinking and tool-call output. `lib/tool-call-syntax.js` supplies balanced-call scanning:
+Runtime adapters are the model-protocol boundary. `lib/gemma-adapter.js` converts
+canonical messages to the Gemma runtime shape and normalizes Gemma thinking and
+tool-call output. `lib/lfm-adapter.js` injects tool definitions, renders canonical
+history using LFM2.5's native Python-style function calls, and parses calls wrapped
+in `<|tool_call_start|>` / `<|tool_call_end|>`. The tool registry and bounded loop
+remain independent of either runtime.
+
+`lib/tool-call-syntax.js` supplies balanced Gemma call scanning:
 
 - balanced braces handle nested objects, arrays, escaped quote tokens, and regular quoted strings;
 - calls inside an open thought channel are ignored;
 - incomplete calls are marked truncated and are never executed;
 - arbitrary declared tool names are supported.
 
+The LFM parser accepts multiple calls and nested string, number, boolean, list, and
+object arguments. It also accepts the bare `[tool_name(...)]` form produced by
+decoders that strip LFM control tokens. Unknown, malformed, and incomplete calls
+are never executed.
+
 Prompt policies belong to registered tools. The web-search registration contributes its
 freshness and result-synthesis policies only while that tool is active; tools whose output
 is marked as external also enable the external-data guard.
 
 `scripts/tool-call-stop-inline.mjs` contains the equivalent self-contained scanner injected into `gemma-4-e2b.js`. `scripts/patch-gemma-tool-support.mjs` accepts exactly the current upstream or already-patched bundle so upstream drift fails visibly.
+`scripts/patch-lfm-tool-support.mjs` makes the smaller LFM runtime expose decoded
+control tokens only when its adapter requests them; ordinary chat decoding is unchanged.
 
 ## Rendering and persistence shape
 

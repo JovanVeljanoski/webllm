@@ -42,8 +42,20 @@ describe("Gemma protocol parsing", () => {
 
   it("recognizes partial tool syntax before it can flash as answer text", () => {
     expect(looksLikeToolCallSyntax("<|tool_call>call:web_se")).toBe(true);
+    expect(looksLikeToolCallSyntax("<|tool_call_start|>[web_se")).toBe(true);
+    expect(looksLikeToolCallSyntax("[web_search(queries=['news'])]")).toBe(true);
     expect(looksLikeToolCallSyntax("call:web_search")).toBe(true);
     expect(looksLikeToolCallSyntax("ordinary answer")).toBe(false);
+  });
+
+  it("strips LFM tool calls from visible answer text", () => {
+    expect(stripToolCallSyntax(
+      '<|tool_call_start|>[web_search(queries=["news"])]'
+      + "<|tool_call_end|>Checking.",
+    )).toBe("Checking.");
+    expect(stripToolCallSyntax(
+      "[web_search(queries=['news'])] Checking.",
+    )).toBe("Checking.");
   });
 
   it("does not parse calls from an open thought channel", () => {
