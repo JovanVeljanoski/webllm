@@ -1,0 +1,15 @@
+## text_config deltas
+
+- **hidden_size**: E2B=1536 → E4B=2560
+- **intermediate_size**: E2B=6144 → E4B=10240
+- **layer_types**: E2B=['sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention'] → E4B=['sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention']
+- **num_hidden_layers**: E2B=35 → E4B=42
+- **num_key_value_heads**: E2B=1 → E4B=2
+- **num_kv_shared_layers**: E2B=20 → E4B=18
+- **use_double_wide_mlp**: E2B=True → E4B=False
+
+## quantization_config.module_quant_configs
+
+- **language_model\.embed_tokens_per_layer$**: E2B={'num_bits': 4} → E4B={'num_bits': 2}
+- **language_model\.layers\.(\d|1[0-4])\.mlp\.**: E2B={'num_bits': 4} → E4B=None
+- **language_model\.layers\.\d+\.mlp\.**: E2B={'num_bits': 2} → E4B={'num_bits': 4}

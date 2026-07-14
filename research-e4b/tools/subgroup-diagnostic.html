@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gemma4 WebGPU subgroup diagnostic</title>
+<style>
+  body { font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; max-width: 900px; margin: 24px auto; padding: 0 16px; }
+  h1 { font-size: 18px; } h2 { font-size: 15px; margin-top: 24px; }
+  pre { background: #0b0b0c; color: #d6d6d6; padding: 12px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; }
+  .pass { color: #34c759; font-weight: 600; } .fail { color: #ff3b30; font-weight: 600; } .warn { color: #ff9f0a; font-weight: 600; }
+  button { font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid #888; cursor: pointer; margin-right: 8px; }
+</style>
+</head>
+<body>
+<h1>Gemma4 WebGPU subgroup-portability diagnostic</h1>
+<p>Runs reduction idioms used by Gemma4 decode kernels on <em>your</em> GPU. No model download.
+Source: <a href="https://huggingface.co/spaces/webml-community/gemma-4-webgpu-kernels/discussions/1">HF discussion #1</a> (Claude Opus diagnostic, Xenova/webml-community).</p>
+<button id="run-hp">Run on high-performance GPU</button>
+<button id="run-lp">Run on low-power GPU</button>
+<pre id="out">Click a button above.</pre>
+<script type="module">
+const out = document.getElementById('out');
+const log = (s, cls) => { out.innerHTML += (cls ? `<span class="${cls}">${s}</span>` : s) + '\n'; };
+const PASS = (s) => log('  PASS  ' + s, 'pass');
+const FAIL = (s) => log('  FAIL  ' + s, 'fail');
+const WARN = (s) => log('  WARN  ' + s, 'warn');
+
+document.getElementById('run-hp').onclick = () => go('high-performance');
+document.getElementById('run-lp').onclick = () => go('low-power');
+async function go(pref) {
+  out.innerHTML = '';
+  log(`requested powerPreference: ${pref}\n`);
+  try { await main(pref); } catch (e) { log('FATAL: ' + (e && e.message || e), 'fail'); console.error(e); }
+}
+
+async function main(powerPreference) {
+  if (!navigator.gpu) { FAIL('navigator.gpu missing — WebGPU unavailable'); return; }
+  const adapter = await navigator.gpu.requestAdapter({ powerPreference });
+  if (!adapter) { FAIL('no adapter'); return; }
+  const info = adapter.info || {};
+  log(`adapter: vendor=${info.vendor} arch=${info.architecture} device=${info.device || ''}`);
+  log(`subgroup range (reported): min=${info.subgroupMinSize} max=${info.subgroupMaxSize}`);
+  log(`features available: subgroups=${adapter.features.has('subgroups')} shader-f16=${adapter.features.has('shader-f16')}`);
+  const req = [];
+  if (adapter.features.has('subgroups')) req.push('subgroups');
+  if (adapter.features.has('shader-f16')) req.push('shader-f16');
+  const device = await adapter.requestDevice({ requiredFeatures: req });
+  const hasSub = adapter.features.has('subgroups');
+  if (!hasSub) WARN('subgroups feature absent — model would use workgroup fallback');
+
+  async function runCompute(code, dispatch, outElems, { workgroups = dispatch } = {}) {
+    const module = device.createShaderModule({ code });
+    const ci = await module.getCompilationInfo();
+    for (const m of ci.messages) if (m.type === 'error') throw new Error(`shader compile: ${m.message}`);
+    const pipeline = await device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'main' } });
+    const buf = device.createBuffer({ size: outElems * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+    device.queue.writeBuffer(buf, 0, new Uint32Array(outElems));
+    const bind = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: buf } }] });
+    const enc = device.createCommandEncoder();
+    const pass = enc.beginComputePass();
+    pass.setPipeline(pipeline); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(workgroups); pass.end();
+    const read = device.createBuffer({ size: outElems * 4, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+    enc.copyBufferToBuffer(buf, 0, read, 0, outElems * 4);
+    device.queue.submit([enc.finish()]);
+    await read.mapAsync(GPUMapMode.READ);
+    const u32 = new Uint32Array(read.getMappedRange().slice(0));
+    read.unmap();
+    return u32;
+  }
+  const f32view = (u32) => new Float32Array(u32.buffer);
+
+  log('\n== TEST A: subgroup size + lane mapping (WG=256) ==', '');
+  if (hasSub) {
+    const A = await runCompute(`
+      enable subgroups;
+      @group(0) @binding(0) var<storage, read_write> o: array<u32>;
+      @compute @workgroup_size(256)
+      fn main(@builtin(local_invocation_index) lid: u32,
+              @builtin(subgroup_invocation_id) sid: u32,
+              @builtin(subgroup_size) ssz: u32) {
+        o[lid*3u] = sid; o[lid*3u+1u] = ssz; o[lid*3u+2u] = lid;
+      }`, 1, 256 * 3);
+    const ssz = A[1];
+    log(`  runtime subgroup_size = ${ssz}`);
+    let linear = true, allSame = true, badLid = -1;
+    for (let lid = 0; lid < 256; lid++) {
+      const sid = A[lid*3], s = A[lid*3+1];
+      if (s !== ssz) allSame = false;
+      if (sid !== (lid % s)) { linear = false; if (badLid < 0) badLid = lid; }
+    }
+    if (!allSame) WARN('subgroup_size is not uniform across the workgroup (unusual)');
+    if (linear) PASS(`lane mapping is LINEAR: subgroup_invocation_id == local_invocation_index % ${ssz} for all 256 lanes`);
+    else FAIL(`lane mapping is NON-LINEAR at lid=${badLid}`);
+    if (ssz !== 32) WARN(`physical subgroup_size is ${ssz} (not 32)`);
+  } else { log('  (skipped — no subgroups)'); }
+
+  log('\n== TEST B: butterfly + combine reduction (WG=256, expected total = 32896) ==', '');
+  if (hasSub) {
+    const code = `
+      enable subgroups;
+      @group(0) @binding(0) var<storage, read_write> result: array<f32>;
+      var<workgroup> sgp: array<f32, 8>;
+      fn sg_sum(v: f32) -> f32 {
+        var x = v;
+        x = x + subgroupShuffleXor(x, 1u);
+        x = x + subgroupShuffleXor(x, 2u);
+        x = x + subgroupShuffleXor(x, 4u);
+        x = x + subgroupShuffleXor(x, 8u);
+        x = x + subgroupShuffleXor(x, 16u);
+        return x;
+      }
+      @compute @workgroup_size(256)
+      fn main(@builtin(local_invocation_index) tid: u32, @builtin(workgroup_id) wg: vec3<u32>) {
+        let v = f32(tid + 1u);
+        let s = sg_sum(v);
+        if ((tid & 31u) == 0u) { sgp[tid >> 5u] = s; }
+        workgroupBarrier();
+        var total: f32 = 0.0;
+        for (var i: u32 = 0u; i < 8u; i = i + 1u) { total = total + sgp[i]; }
+        if (tid == 0u) { result[wg.x] = total; }
+      }`;
+    const B = f32view(await runCompute(code, 4, 4));
+    const expected = 256 * 257 / 2;
+    let ok = true; for (let i = 0; i < 4; i++) if (B[i] !== expected) ok = false;
+    if (ok) PASS(`butterfly+combine = ${B[0]} (correct)`);
+    else FAIL(`butterfly+combine = [${[...B].join(', ')}], expected ${expected}`);
+  } else { log('  (skipped — no subgroups)'); }
+
+  log('\n== TEST C: cross-workgroup last-arriver merge (N=64, 200 iters, expected = 2080) ==', '');
+  {
+    const N = 64, ITERS = 200;
+    const code = `
+      const N: u32 = ${N}u;
+      @group(0) @binding(0) var<storage, read_write> buf: array<atomic<u32>>;
+      @compute @workgroup_size(64)
+      fn main(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_index) tid: u32) {
+        if (tid == 0u) { atomicStore(&buf[wg.x], wg.x + 1u); }
+        storageBarrier();
+        if (tid == 0u) {
+          let ticket = atomicAdd(&buf[N], 1u);
+          if (ticket == N - 1u) {
+            var total: u32 = 0u;
+            for (var i: u32 = 0u; i < N; i = i + 1u) { total = total + atomicLoad(&buf[i]); }
+            atomicStore(&buf[N + 1u], total);
+          }
+        }
+      }`;
+    const module = device.createShaderModule({ code });
+    const pipeline = await device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'main' } });
+    const sz = (N + 2) * 4;
+    const buf = device.createBuffer({ size: sz, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+    const read = device.createBuffer({ size: 4, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+    const bind = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: buf } }] });
+    const expected = N * (N + 1) / 2;
+    let fails = 0, firstBad = -1, sample = [];
+    for (let it = 0; it < ITERS; it++) {
+      device.queue.writeBuffer(buf, 0, new Uint32Array(N + 2));
+      const enc = device.createCommandEncoder();
+      const pass = enc.beginComputePass();
+      pass.setPipeline(pipeline); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(N); pass.end();
+      enc.copyBufferToBuffer(buf, (N + 1) * 4, read, 0, 4);
+      device.queue.submit([enc.finish()]);
+      await read.mapAsync(GPUMapMode.READ);
+      const got = new Uint32Array(read.getMappedRange())[0];
+      read.unmap();
+      if (got !== expected) { fails++; if (firstBad < 0) firstBad = it; if (sample.length < 6) sample.push(got); }
+    }
+    if (fails === 0) PASS(`last-arriver merge = ${expected} on all ${ITERS} runs`);
+    else FAIL(`last-arriver merge WRONG on ${fails}/${ITERS} runs (first at iter ${firstBad})`);
+  }
+
+  log('\n== TEST D: butterfly vs workgroup-tree parity (WG=256) ==', '');
+  if (hasSub) {
+    const code = `
+      enable subgroups;
+      @group(0) @binding(0) var<storage, read_write> o: array<u32>;
+      var<workgroup> sgp: array<f32, 8>;
+      var<workgroup> tree: array<f32, 256>;
+      fn sg_sum(v: f32) -> f32 {
+        var x = v;
+        x = x + subgroupShuffleXor(x, 1u); x = x + subgroupShuffleXor(x, 2u);
+        x = x + subgroupShuffleXor(x, 4u); x = x + subgroupShuffleXor(x, 8u);
+        x = x + subgroupShuffleXor(x, 16u); return x;
+      }
+      @compute @workgroup_size(256)
+      fn main(@builtin(local_invocation_index) tid: u32) {
+        let v = f32((tid * 2654435761u) % 997u) - 498.0;
+        let s = sg_sum(v);
+        if ((tid & 31u) == 0u) { sgp[tid >> 5u] = s; }
+        workgroupBarrier();
+        var bf: f32 = 0.0; for (var i: u32 = 0u; i < 8u; i = i + 1u) { bf = bf + sgp[i]; }
+        tree[tid] = v; workgroupBarrier();
+        for (var st: u32 = 128u; st > 0u; st = st >> 1u) {
+          if (tid < st) { tree[tid] = tree[tid] + tree[tid + st]; }
+          workgroupBarrier();
+        }
+        if (tid == 0u) {
+          let diff = abs(bf - tree[0]);
+          if (diff > 0.5) { o[0] = 1u; o[1] = bitcast<u32>(bf); o[2] = bitcast<u32>(tree[0]); }
+        }
+      }`;
+    const D = await runCompute(code, 1, 4);
+    if (D[0] === 0) PASS('butterfly == workgroup-tree (within FP slack)');
+    else FAIL(`butterfly (${f32view(D)[1]}) != workgroup-tree (${f32view(D)[2]})`);
+  } else { log('  (skipped — no subgroups)'); }
+
+  log('\n== Summary ==', '');
+  log('A/B/D PASS + C PASS → subgroup idioms OK on this GPU.');
+  log('A/B/D FAIL → subgroup reduction wrong (lane mapping / butterfly).');
+  log('C FAIL/flaky → cross-workgroup merge suspect (flash attn / oproj / down).');
+}
+</script>
+</body>
+</html>
