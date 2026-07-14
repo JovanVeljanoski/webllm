@@ -72,8 +72,8 @@ For one agent turn:
 1. `app.js` adds the user's message to the current session.
 2. `lib/messages.js` builds the effective model transcript.
 3. `lib/agent-loop.js` asks the model adapter for a generation.
-4. `lib/gemma-adapter.js` separates thinking, visible content, and complete tool
-   calls from the Gemma output.
+4. The adapter selected by `lib/runtime-registry.js` translates canonical messages
+   and normalizes that runtime's output.
 5. If there is no tool call, the answer is complete.
 6. If there is a tool call, the loop resolves it against the tool registry and
    executes it. Unknown tools and execution failures become tool-result messages,
@@ -112,8 +112,10 @@ does not rewrite the stored prompt. The layers are added in this order:
    instructions.
 6. In ordinary chat mode, optional JSON or EBNF guidance.
 
-Tool schemas are also passed separately to the model runtime. Web search and
-grammar guidance are mutually exclusive in the current UI.
+Active tool schemas are supplied through the selected runtime adapter. Tool policy
+is rebuilt before every generation, so the final tools-disabled generation does
+not retain stale tool-use instructions. Web search and grammar guidance are
+mutually exclusive in the current UI.
 
 Before generation, the loaded model's tokenizer measures the complete prompt. The
 input budget reserves the requested output length plus 256 safety tokens. If the
@@ -150,9 +152,10 @@ tool:
 4. sanitizes and formats the returned evidence;
 5. gives the same evidence to the UI and the local model.
 
-Gemma then generates again with the search result in its transcript. It may answer,
-make another search within the limits, or report that the evidence is insufficient.
-The host does not classify answer quality, retry weak answers, or invent a result.
+The selected model then generates again with the full search result in its
+transcript. It may answer, make another search within the limits, or report that
+the evidence is insufficient. The host does not truncate provider evidence,
+classify answer quality, retry weak answers, or invent a result.
 
 ## Privacy and network access
 
@@ -178,8 +181,7 @@ on the runtime. Storage failures degrade to in-memory chat where possible.
 - **LFM2.5 230M** — about 150 MB, fastest, native LFM tool calling
 - **LFM2.5 350M** — about 220 MB, a larger LFM option with native tool calling
 
-Gemma 4 E4B is research only and is not loadable by the app. The material in
-`research-e4b/` documents that future target.
+Gemma 4 E4B is not loadable by the app.
 
 ## Design decisions
 
@@ -192,7 +194,7 @@ chronological messages. This makes sessions portable, debuggable, and exportable
 
 **A small generic loop.** The orchestration code knows how to generate, dispatch
 tools, append results, and stop. Search-specific behavior stays in the search tool;
-Gemma-specific syntax stays in the model adapter.
+runtime-specific syntax and generation behavior stay behind the runtime registry.
 
 **Bounded autonomy.** Hard round and call limits are more predictable than asking a
 small model to decide when it has done enough.
@@ -213,8 +215,8 @@ worker. Those are possible future improvements, not behavior hidden in the demo.
 - Unit tests do not run real WebGPU inference.
 
 This is a proof of concept, not a security boundary for executing arbitrary tools.
-Any new tool should validate its inputs, bound its output, define its trust level,
-and expose only the minimum capability needed.
+Any new tool should validate its inputs, define its output contract and trust
+level, and expose only the minimum capability needed.
 
 ## Local development
 
@@ -245,6 +247,8 @@ Node.js 22 is used in CI.
 - `app.js` — UI state, model lifecycle, streaming, persistence, and orchestration
 - `lib/agent-loop.js` — bounded model/tool transcript loop
 - `lib/messages.js` — effective prompt construction and exports
+- `lib/runtime-registry.js` — runtime loading, token counting, generation options,
+  tool protocol, and adapter selection
 - `lib/gemma-adapter.js` — canonical-message and Gemma protocol boundary
 - `lib/lfm-adapter.js` — canonical-message and LFM protocol boundary
 - `lib/tools.js` — tool declarations and prompt policies
@@ -253,7 +257,6 @@ Node.js 22 is used in CI.
 - `gemma-4-e2b.js` and `lfm2_5.js` — vendored WebGPU runtimes
 - `tests/` — Vitest unit tests
 - `docs/architecture.md` — detailed source of truth for current behavior
-- `research-e4b/` — separate Gemma 4 E4B research pack
 
 ## Contributing
 

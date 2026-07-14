@@ -24,6 +24,7 @@ import {
   sessionDownloadFilename,
 } from "./lib/format.js";
 import {
+  applyAgentPolicy,
   buildMessages as buildMessagesForModel,
   buildAgentMessages,
   exportSessionOpenAI,
@@ -31,15 +32,7 @@ import {
   splitThinking,
 } from "./lib/messages.js";
 import { runAgentTurn } from "./lib/agent-loop.js";
-import {
-  countGemmaPromptTokens,
-  generateGemmaAssistant,
-  GEMMA_TOOL_PROTOCOL,
-} from "./lib/gemma-adapter.js";
-import {
-  generateLfmAssistant,
-  LFM_TOOL_PROTOCOL,
-} from "./lib/lfm-adapter.js";
+import { getRuntimeAdapter } from "./lib/runtime-registry.js";
 import { fitMessagesToContext } from "./lib/context-window.js";
 import { createWebSearchTool } from "./lib/web-search-tool.js";
 import { agentMessagesToSteps } from "./lib/agent-ui.js";
@@ -107,10 +100,6 @@ function loadedModelDef() {
 
 function modelSupportsThinking() {
   return modelHasThinking(state.loadedModelId, state.selectedModelId);
-}
-
-function toolProtocolForRuntime(runtime) {
-  return runtime === "lfm2" ? LFM_TOOL_PROTOCOL : GEMMA_TOOL_PROTOCOL;
 }
 
 function webSearchEffective() {
@@ -235,8 +224,6 @@ const state = {
   modelLoadSecs: null,
   selectedModelId: DEFAULT_MODEL_ID,
   loadedModelId: null,
-  gemmaScriptPromise: null,
-  lfm2Runtime: null,
   webSearchPreferred: false,
 };
 
@@ -625,42 +612,6 @@ function updateEmptyCacheHint() {
   }
 }
 
-async function ensureGemmaRuntime() {
-  if (typeof globalThis.Gemma4Mobile === "function") return true;
-  if (!state.gemmaScriptPromise) {
-    state.gemmaScriptPromise = new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = "gemma-4-e2b.js";
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error("Failed to load Gemma runtime"));
-      document.head.appendChild(script);
-    });
-  }
-  try {
-    await state.gemmaScriptPromise;
-  } catch (err) {
-    console.error(err);
-    state.gemmaScriptPromise = null;
-    return false;
-  }
-  return typeof globalThis.Gemma4Mobile === "function";
-}
-
-async function ensureRuntime(def = activeModelDef()) {
-  if (!def) return false;
-  if (def.runtime === "gemma") return ensureGemmaRuntime();
-  if (!state.lfm2Runtime) {
-    try {
-      const mod = await import("./lfm2_5.js");
-      state.lfm2Runtime = mod.Lfm2Mobile;
-    } catch (err) {
-      console.error(err);
-      return false;
-    }
-  }
-  return !!state.lfm2Runtime;
-}
-
 function resetLoadedModel() {
   if (!state.model || typeof state.model.reset !== "function") return;
   try { state.model.reset(); } catch { /* ignore */ }
@@ -864,20 +815,13 @@ async function loadModel() {
   setModelStatus("loading", "Requesting WebGPU…");
   const started = performance.now();
   try {
-    if (!(await ensureRuntime(def))) {
-      throw new Error("Model runtime could not be loaded");
-    }
     const loadOpts = {
       onProgress: onLoadProgress,
       cacheName: def.cacheName,
       revision: def.revision,
     };
     if (state.fileOrigin) loadOpts.cache = false;
-    if (def.runtime === "gemma") {
-      state.model = await globalThis.Gemma4Mobile.load(null, loadOpts);
-    } else {
-      state.model = await state.lfm2Runtime.load(def.hubId, loadOpts);
-    }
+    state.model = await getRuntimeAdapter(def.runtime).loadModel(def, loadOpts);
     setModelStatus("loading", "Warming up…");
     state.progress.label = "Warming up…";
     setProgressTarget(0.99);
@@ -939,11 +883,17 @@ function downloadSession(sessionId, format = "conversation") {
     ? recordedMode === "agent"
     : webSearchEffective()
       || session.messages.some(message => message.role === "tool" || message.tool_calls?.length);
+  const modelDef = MODELS[resolveModelIdForSession(session, DEFAULT_MODEL_ID)];
+  const runtime = getRuntimeAdapter(modelDef.runtime);
+  const tools = agentMode
+    ? [createWebSearchTool(defaultSearchProvider)]
+    : [];
   const payload = fullTrace
     ? exportSessionTrace(session, {
       agentMode,
       grammarConfig: grammarConfig(),
-      toolProtocol: toolProtocolForRuntime(MODELS[session.modelId]?.runtime),
+      toolProtocol: runtime.toolProtocol,
+      tools,
     })
     : exportSessionOpenAI(session);
   const json = JSON.stringify(payload, null, 2);
@@ -2310,20 +2260,20 @@ async function runAssistantGeneration(session) {
   let generationError = null;
 
   try {
+    const modelDef = loadedModelDef();
+    const runtime = getRuntimeAdapter(modelDef.runtime);
     if (useAgent) {
       const webSearchTool = createWebSearchTool(defaultSearchProvider);
-      const modelDef = loadedModelDef();
-      const isLfm = modelDef?.runtime === "lfm2";
-      const baseMessages = buildAgentMessages(
-        session,
-        [webSearchTool],
-        { toolProtocol: toolProtocolForRuntime(modelDef?.runtime) },
-      );
+      const baseMessages = buildAgentMessages(session);
       result = await runAgentTurn({
         model: state.model,
         messages: baseMessages,
         tools: [webSearchTool],
-        generateFn: isLfm ? generateLfmAssistant : generateGemmaAssistant,
+        generateFn: runtime.generateAgent,
+        prepareMessages: (messages, activeTools) =>
+          applyAgentPolicy(messages, activeTools, {
+            toolProtocol: runtime.toolProtocol,
+          }),
         maxNewTokens: state.maxNewTokens,
         contextWindowTokens: modelDef?.contextWindowTokens,
         signal: state.abort.signal,
@@ -2372,27 +2322,22 @@ async function runAssistantGeneration(session) {
         output = split.output || output;
       }
     } else {
-      const modelDef = loadedModelDef();
       const enableThinking = modelSupportsThinking();
       const runtimeMessages = buildMessages(session);
       const fittedMessages = fitMessagesToContext(runtimeMessages, {
         contextWindowTokens: modelDef?.contextWindowTokens,
         maxNewTokens: state.maxNewTokens,
-        countTokens: messages => {
-          if (modelDef?.runtime === "gemma") {
-            return countGemmaPromptTokens(state.model, messages, {
-              enableThinking,
-            });
-          }
-          if (typeof state.model.encodePrompt !== "function") return null;
-          return state.model.encodePrompt(messages).length;
-        },
+        countTokens: messages => runtime.countPromptTokens(
+          state.model,
+          messages,
+          { enableThinking },
+        ),
       });
-      const stream = state.model.generate(fittedMessages, {
+      const stream = state.model.generate(fittedMessages, runtime.chatOptions({
         maxNewTokens: state.maxNewTokens,
         enableThinking,
         signal: state.abort.signal,
-      });
+      }));
       for await (const chunk of stream) {
         handleGenerationChunk(chunk, streamCtx);
         publishStreamContext(streamCtx);

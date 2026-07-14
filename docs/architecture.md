@@ -4,7 +4,12 @@ This document describes the implementation that is shipped from this repository.
 
 ## Runtime boundary
 
-WebLLM is a static browser application. `index.html` owns the document shell and styles; `app.js` owns DOM state, model loading, streaming, session actions, and the model/cache lifecycle. Testable behavior lives in `lib/`. There is no application backend or server-side model inference.
+WebLLM is a static browser application. `index.html` owns the document shell and
+styles; `app.js` owns DOM state, streaming, session actions, and the model/cache
+lifecycle. `lib/runtime-registry.js` is the single dispatch point for runtime
+loading, token counting, chat options, tool protocol, and agent adapter selection.
+Testable behavior lives in `lib/`. There is no application backend or server-side
+model inference.
 
 The supported registry in `lib/models.js` currently contains:
 
@@ -12,7 +17,7 @@ The supported registry in `lib/models.js` currently contains:
 - `lfm2`: LFM2.5 230M GGUF, loaded from `lfm2_5.js`.
 - `lfm2_350`: LFM2.5 350M GGUF, loaded from `lfm2_5.js`.
 
-Gemma 4 E4B is not registered or loadable. `research-e4b/` is a separate research pack and remains a future target until a compatible, browser-validated runtime bundle exists.
+Gemma 4 E4B is not registered or loadable.
 
 ## Data flow and privacy
 
@@ -21,7 +26,11 @@ Inference runs locally through WebGPU. Chat sessions are persisted in the `webll
 - Gemma safetensors use IndexedDB chunks plus Cache Storage metadata/configuration.
 - LFM2 GGUF files use Cache Storage, with a separate cache name for each model.
 
-If Web Search is disabled, prompts, generated content, and chat history remain in the browser. When enabled, the `web_search` tool sends bounded normalized queries to the third-party Exa MCP endpoint. Exa results are sanitized, preserved as returned, shown in agent steps, and supplied to the local model as evidence. Search is the intentional network exception.
+If Web Search is disabled, prompts, generated content, and chat history remain in
+the browser. When enabled, the `web_search` tool sends normalized queries to the
+third-party Exa MCP endpoint. Exa results are sanitized, preserved in full as
+returned, shown in agent steps, and supplied to the local model as evidence.
+Search is the intentional network exception.
 
 IndexedDB and `localStorage` failures degrade to an in-memory session state where possible. A browser `file://` origin can run some UI code but cannot provide the normal cache/persistence behavior; use an HTTP(S) origin for testing.
 
@@ -35,7 +44,13 @@ IndexedDB and `localStorage` failures degrade to an in-memory session state wher
 4. Generate again from that expanded transcript, allowing up to three tool rounds.
 5. After the tool limit, run one final generation with tools disabled.
 
-The loop emits `generation_start`, `message_end`, `tool_start`, and `tool_end` events. It does not infer freshness, compact memory, classify answer quality, or retry answers. Aborts are checked before every generation and tool round, forwarded through search and Gemma prefill/decode, and return partial state.
+The loop emits `generation_start`, `message_end`, `tool_start`, and `tool_end`
+events. Before each model call it asks the caller to prepare messages with the
+currently active tools. This rebuilds tool policy for every generation and removes
+both policy and declarations from the final tools-disabled generation. The loop
+does not infer freshness, compact memory, classify answer quality, or retry
+answers. Aborts are checked before every generation and tool round, forwarded
+through search and runtime generation, and return partial state.
 
 `lib/web-search-tool.js` owns web-specific query normalization, per-turn deduplication, Exa execution, formatting, and metadata. The loop only sees a `{ name, schema, execute }` registry entry.
 
@@ -47,7 +62,8 @@ shortened. Web-search evidence is preserved as returned by the provider.
 
 ## Tool protocol and safety
 
-Runtime adapters are the model-protocol boundary. `lib/gemma-adapter.js` converts
+Runtime adapters are the model-protocol boundary, selected only through
+`lib/runtime-registry.js`. `lib/gemma-adapter.js` converts
 canonical messages to the Gemma runtime shape and normalizes Gemma thinking and
 tool-call output. `lib/lfm-adapter.js` injects tool definitions, renders canonical
 history using LFM2.5's native Python-style function calls, and parses calls wrapped
@@ -68,7 +84,9 @@ are never executed.
 
 Prompt policies belong to registered tools. The web-search registration contributes its
 freshness and result-synthesis policies only while that tool is active; tools whose output
-is marked as external also enable the external-data guard.
+is marked as external also enable the external-data guard. External text is
+sanitized against both Gemma and LFM prompt/tool boundary tokens before entering a
+model transcript.
 
 `scripts/tool-call-stop-inline.mjs` contains the equivalent self-contained scanner injected into `gemma-4-e2b.js`. `scripts/patch-gemma-tool-support.mjs` accepts exactly the current upstream or already-patched bundle so upstream drift fails visibly.
 `scripts/patch-lfm-tool-support.mjs` makes the smaller LFM runtime expose decoded
@@ -97,7 +115,15 @@ Canonical tool use has this shape:
 
 `exportSessionOpenAI(session)` emits tool calls/results in Chat Completions order: an assistant message with `tool_calls`, a `tool` message for each call, and the final assistant message.
 
-The download dialog keeps that portable export as the default and offers `exportSessionTrace(session)` as an opt-in diagnostic format. It requires explicit format selection and confirmation. Requests made during generation are queued until the response finishes so browser file-download UI cannot interrupt inference. The full trace includes effective model context, prompt layers, the latest recorded execution mode, canonical messages, thinking, metrics, tool metadata, and portable OpenAI messages. Thinking is omitted only at the OpenAI export boundary.
+The download dialog keeps that portable export as the default and offers
+`exportSessionTrace(session)` as an opt-in diagnostic format. The caller supplies
+the actual active tool registrations; the message/export layer contains no
+hardcoded web-search specification. Trace download requires explicit format
+selection and confirmation. Requests made during generation are queued until the
+response finishes so browser file-download UI cannot interrupt inference. The
+full trace includes effective model context, prompt layers, the latest recorded
+execution mode, canonical messages, thinking, metrics, tool metadata, and portable
+OpenAI messages. Thinking is omitted only at the OpenAI export boundary.
 
 ## Runtime influences
 

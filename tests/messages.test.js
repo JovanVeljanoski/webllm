@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyAgentPolicy,
   buildAgentMessages,
   buildEffectiveSystemPrompt,
   buildGrammarSuffix,
@@ -115,6 +116,18 @@ describe("message construction", () => {
     expect(messages[0].content).not.toContain(EXTERNAL_TOOL_DATA_GUARD);
   });
 
+  it("applies active tool policy without mutating the base transcript", () => {
+    const base = buildAgentMessages(canonicalSession);
+    const prepared = applyAgentPolicy(base, [WEB_SEARCH_TOOL_SPEC], {
+      toolProtocol: "Use the runtime protocol.",
+    });
+
+    expect(base[0].content).not.toContain("web_search");
+    expect(prepared[0].content).toContain("web_search");
+    expect(prepared[0].content).toContain("Use the runtime protocol.");
+    expect(applyAgentPolicy(base, [])).toBe(base);
+  });
+
 });
 
 describe("exports", () => {
@@ -146,12 +159,20 @@ describe("exports", () => {
         generations: 2,
         toolCalls: 1,
       },
-    }, { agentMode: true });
+    }, { agentMode: true, tools: [WEB_SEARCH_TOOL_SPEC] });
     expect(trace.version).toBe(2);
     expect(trace.modelContext.messages[0].content).toContain("web_search");
     expect(trace.openaiMessages[2].tool_calls).toHaveLength(1);
     expect(trace.messages[2].meta.resultCount).toBe(1);
     expect(trace.execution).toMatchObject({ mode: "agent", generations: 2 });
+  });
+
+  it("does not invent tools when an agent trace omits registrations", () => {
+    const trace = exportSessionTrace(canonicalSession, { agentMode: true });
+
+    expect(trace.modelContext.tools).toEqual([]);
+    expect(trace.promptLayers.agentPolicy).toEqual([]);
+    expect(trace.modelContext.messages[0].content).not.toContain("web_search");
   });
 });
 

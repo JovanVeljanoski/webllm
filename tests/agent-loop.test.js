@@ -221,11 +221,20 @@ describe("runAgentTurn", () => {
       messages: [{ role: "user", content: "Loop" }],
       tools: [{ name: "lookup", schema: {}, execute: async () => ({ content: "ok" }) }],
       generateFn: mock.generateFn,
+      prepareMessages: (messages, activeTools) => [
+        {
+          role: "system",
+          content: activeTools.length ? "Tools are active." : "Tools are disabled.",
+        },
+        ...messages,
+      ],
       model: {},
       maxNewTokens: 64,
     });
 
     expect(mock.calls).toHaveLength(MAX_MODEL_GENERATIONS);
+    expect(mock.calls[0].messages[0].content).toBe("Tools are active.");
+    expect(mock.calls.at(-1).messages[0].content).toBe("Tools are disabled.");
     expect(mock.calls.at(-1).tools).toEqual([]);
     expect(result.content).toBe("Final");
   });
