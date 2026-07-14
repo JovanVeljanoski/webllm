@@ -248,6 +248,134 @@
   .grammar-extra.show { display: block; }
   .grammar-extra textarea { min-height: 72px; font-family: var(--mono); font-size: 11px; }
   .hint-box { font-size: 11px; color: var(--text-muted); line-height: 1.5; padding: 8px 10px; border-radius: var(--radius-xs); background: var(--surface-2); margin-top: 8px; }
+  .toggle-row { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+  .switch-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    font-size: 13px; user-select: none; position: relative;
+  }
+  .switch-label-wrap {
+    display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+  }
+  .switch-row .switch-label {
+    font-weight: 600; color: var(--text); cursor: pointer;
+  }
+  .help-tip {
+    position: relative; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; padding: 0;
+    border: 1.5px solid color-mix(in srgb, var(--border) 80%, var(--text-muted));
+    border-radius: 50%; background: var(--surface-2);
+    font-size: 11px; font-weight: 700; line-height: 1; color: var(--text-muted);
+    cursor: help; font-family: inherit;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .help-tip:hover,
+  .help-tip:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+    color: var(--accent); background: var(--accent-soft);
+  }
+  .help-tip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .help-tip-text {
+    position: absolute; left: 50%; bottom: calc(100% + 8px);
+    transform: translateX(-50%) translateY(4px);
+    width: max-content; max-width: min(240px, calc(100vw - 32px));
+    padding: 8px 10px; border-radius: var(--radius-xs);
+    border: 1px solid var(--border);
+    background: var(--surface); color: var(--text-secondary);
+    font-size: 11px; font-weight: 500; line-height: 1.45; text-align: center;
+    box-shadow: var(--shadow-md);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity 0.15s, visibility 0.15s, transform 0.15s;
+    z-index: 20;
+  }
+  .help-tip-text::after {
+    content: ""; position: absolute; top: 100%; left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent; border-top-color: var(--border);
+  }
+  .switch-row:has(.help-tip:hover) .help-tip-text,
+  .switch-row:has(.help-tip:focus-visible) .help-tip-text {
+    opacity: 1; visibility: visible;
+    transform: translateX(-50%) translateY(0);
+  }
+  .switch-wrap { position: relative; flex-shrink: 0; }
+  .switch-input {
+    position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+    opacity: 0; cursor: pointer; z-index: 1;
+  }
+  .switch-slider {
+    position: relative;
+    display: block; width: 44px; height: 26px; border-radius: 999px;
+    background: color-mix(in srgb, var(--border) 85%, var(--text-muted));
+    border: 1.5px solid var(--border);
+    transition: background 0.2s, border-color 0.2s;
+    pointer-events: none;
+  }
+  .switch-slider::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--surface);
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18);
+    transition: transform 0.2s ease;
+  }
+  .switch-input:checked + .switch-slider {
+    background: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+  }
+  .switch-input:checked + .switch-slider::after {
+    transform: translateX(18px);
+  }
+  .switch-input:focus-visible + .switch-slider {
+    outline: var(--focus-ring); outline-offset: 2px;
+  }
+  .switch-input:disabled { cursor: not-allowed; }
+  .switch-input:disabled + .switch-slider { opacity: 0.55; }
+  .avatar.thinking {
+    border-color: color-mix(in srgb, #8b5cf6 30%, var(--border));
+    background: color-mix(in srgb, rgba(139, 92, 246, 0.12) 70%, var(--surface));
+    color: #8b5cf6;
+  }
+  .avatar.tool {
+    border-color: color-mix(in srgb, #f59e0b 35%, var(--border));
+    background: color-mix(in srgb, rgba(245, 158, 11, 0.12) 70%, var(--surface));
+    color: #d97706;
+  }
+  .msg.agent-step.tool-call .msg-card,
+  .msg.agent-step.tool-result .msg-card {
+    border-color: color-mix(in srgb, #f59e0b 22%, var(--border));
+  }
+  .msg.agent-step.runtime-status .msg-card {
+    border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+    background: color-mix(in srgb, var(--accent-soft) 42%, var(--surface));
+  }
+  .runtime-status-line {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: var(--text-secondary);
+  }
+  .tool-query-line {
+    font-size: 15px; line-height: 1.6; color: var(--text);
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .tool-searching {
+    display: flex; align-items: center; gap: 10px; margin-top: 10px;
+    font-size: 13px; color: var(--text-secondary);
+  }
+  .tool-result-disclosure {
+    border: 1px solid var(--border-soft); border-radius: 10px;
+    background: var(--think-bg); overflow: hidden;
+  }
+  .tool-result-disclosure summary {
+    list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--text-secondary); user-select: none;
+  }
+  .tool-result-disclosure summary .tool-result-label { flex: 1; min-width: 0; }
+  .tool-result-disclosure summary .chevron { transition: transform 0.15s; }
+  .tool-result-disclosure[open] summary .chevron { transform: rotate(180deg); }
+  .tool-result-disclosure summary::-webkit-details-marker { display: none; }
+  .tool-result-disclosure .tool-result-content {
+    padding: 0 14px 14px; font-family: var(--mono); font-size: 12px; line-height: 1.55;
+    color: var(--text-secondary); white-space: pre-wrap; max-height: 280px; overflow-y: auto;
+  }
   .field-hint { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin: 0 0 10px; }
   .storage-actions { display: flex; flex-direction: column; gap: 6px; }
   .storage-actions .btn { width: 100%; text-align: center; font-size: 12px; padding: 8px 10px; }
@@ -276,6 +404,33 @@
   .credits-dialog-close .icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
   .credits-dialog-close:hover { background: var(--surface-2); color: var(--text); }
   .credits-dialog-close:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+  .download-dialog-copy { margin: 0 0 16px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+  .download-dialog-actions { display: flex; flex-direction: column; gap: 8px; }
+  .download-option {
+    position: relative; display: flex; align-items: flex-start; gap: 10px; width: 100%;
+    padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px;
+    background: var(--surface); color: var(--text); cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  }
+  .download-option:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--surface-2); }
+  .download-option:has(input:checked) {
+    border-color: var(--accent); background: var(--accent-soft);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .download-option input {
+    appearance: none; width: 18px; height: 18px; margin: 1px 0 0; flex: none;
+    border: 2px solid var(--text-muted); border-radius: 50%; background: var(--surface);
+  }
+  .download-option input:checked { border: 5px solid var(--accent); }
+  .download-option input:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+  .download-option-copy { min-width: 0; font-size: 13px; font-weight: 700; line-height: 1.35; }
+  .download-option small {
+    display: block; margin-top: 3px; font-size: 11px; font-weight: 500; color: var(--text-secondary);
+  }
+  .download-dialog-footer {
+    display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;
+    padding-top: 14px; border-top: 1px solid var(--border-soft);
+  }
 
   /* ── Main ── */
   #main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-chat); min-height: 0; }
@@ -344,7 +499,8 @@
     display: none; padding: 10px 24px; font-size: 13px; line-height: 1.5; border-bottom: 1px solid transparent;
   }
   #webgpu-banner.show { display: block; }
-  #webgpu-banner.inline { padding: 10px 14px; border-radius: var(--radius-xs); border: 1px solid transparent; margin-top: 12px; font-size: 12px; }
+  #webgpu-banner.inline { padding: 10px 14px; border-radius: var(--radius-xs); border: 1px solid transparent; margin-top: 12px; margin-bottom: 0; font-size: 12px; }
+  #empty-banner-mount:not(:empty) { margin-bottom: 16px; }
   #webgpu-banner[data-level="error"] { background: rgba(239,68,68,0.1); color: var(--danger); border-color: rgba(239,68,68,0.2); }
   #webgpu-banner[data-level="warn"] { background: rgba(245,158,11,0.12); color: var(--warning); border-color: rgba(245,158,11,0.25); }
   #webgpu-banner[data-level="ok"] { background: rgba(16,185,129,0.1); color: var(--success); border-color: rgba(16,185,129,0.2); }
@@ -354,6 +510,7 @@
   #load-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #a78bfa); transition: width 0.15s linear; }
 
   #chat-scroll { flex: 1; min-height: 0; overflow-y: auto; scroll-behavior: smooth; background: var(--bg); }
+  #chat-scroll.streaming-scroll { scroll-behavior: auto; }
 
   /* ── Messages — unified outlined cards ── */
   #chat-messages {
@@ -361,6 +518,9 @@
     padding: 32px 0 40px;
   }
   .msg { width: 100%; animation: fadeUp 0.28s ease; }
+  .msg.streaming,
+  .msg.agent-step.streaming { animation: none; }
+  .msg.no-entry-animation { animation: none; }
 
   .msg-inner {
     max-width: 780px; margin: 0 auto; padding: 0 28px;
@@ -408,14 +568,57 @@
     box-shadow: 0 6px 22px rgba(15, 23, 42, 0.06);
   }
 
+  .msg-card-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-bottom: 11px;
+  }
+  .msg-card-head .msg-role { margin-bottom: 0; flex: 1; min-width: 0; }
+
   .msg-role {
     font-size: 11px; font-weight: 700; color: var(--text-muted);
     margin-bottom: 11px; letter-spacing: 0.06em; text-transform: uppercase;
   }
 
-  .msg-content, .response-content {
+  .msg-content {
     font-size: 15.5px; line-height: 1.72; color: var(--text);
     white-space: pre-wrap; word-break: break-word;
+  }
+  .response-content {
+    font-size: 15.5px; line-height: 1.72; color: var(--text);
+    word-break: break-word;
+  }
+  .response-content > :first-child { margin-top: 0; }
+  .response-content > :last-child { margin-bottom: 0; }
+  .response-content p { margin: 0 0 0.75em; }
+  .response-content ul, .response-content ol { margin: 0 0 0.75em; padding-left: 1.4em; }
+  .response-content li { margin: 0.2em 0; }
+  .response-content h1, .response-content h2, .response-content h3,
+  .response-content h4, .response-content h5, .response-content h6 {
+    margin: 1.1em 0 0.45em; line-height: 1.35; font-weight: 700;
+  }
+  .response-content h1 { font-size: 1.35em; }
+  .response-content h2 { font-size: 1.2em; }
+  .response-content h3 { font-size: 1.08em; }
+  .response-content blockquote {
+    margin: 0 0 0.75em; padding: 0.2em 0 0.2em 0.9em;
+    border-left: 3px solid var(--border); color: var(--text-secondary);
+  }
+  .response-content code {
+    font-family: var(--mono); font-size: 0.9em;
+    background: var(--think-bg); padding: 0.12em 0.35em; border-radius: 5px;
+  }
+  .response-content pre {
+    margin: 0 0 0.85em; padding: 12px 14px; overflow-x: auto;
+    border-radius: 10px; background: var(--think-bg); border: 1px solid var(--border-soft);
+  }
+  .response-content pre code { background: none; padding: 0; border-radius: 0; }
+  .response-content a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+  .response-content hr { border: none; border-top: 1px solid var(--border-soft); margin: 1em 0; }
+  .response-content table {
+    width: 100%; margin: 0 0 0.85em; border-collapse: collapse; font-size: 0.95em;
+  }
+  .response-content th, .response-content td {
+    border: 1px solid var(--border-soft); padding: 6px 10px; text-align: left;
   }
 
   .think-disclosure {
@@ -428,7 +631,24 @@
   }
   .think-disclosure summary::-webkit-details-marker { display: none; }
   .think-disclosure summary:focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
-  .think-disclosure summary .chevron { margin-left: auto; transition: transform 0.15s; }
+  .summary-actions {
+    display: inline-flex; align-items: center; gap: 4px; margin-left: auto; flex-shrink: 0;
+  }
+  .msg-head-actions {
+    display: inline-flex; align-items: center; gap: 4px; margin-left: auto; flex-shrink: 0;
+  }
+  .msg-head-actions .footer-action { opacity: 0; transition: opacity 0.15s; }
+  .msg:hover .msg-head-actions .footer-action,
+  .msg.editing .msg-head-actions .footer-action { opacity: 1; }
+  @media (hover: none) { .msg-head-actions .footer-action { opacity: 1; } }
+  .msg-edit-input {
+    width: 100%; min-height: 44px; resize: vertical;
+    font: inherit; line-height: 1.72; color: var(--text);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px;
+  }
+  .msg-edit-input:focus { outline: var(--focus-ring); outline-offset: 1px; }
+  .think-disclosure summary .chevron { transition: transform 0.15s; }
   .think-disclosure[open] summary .chevron { transform: rotate(180deg); }
   .think-disclosure .think-content {
     padding: 0 14px 14px; font-family: var(--mono); font-size: 13px; line-height: 1.65;
@@ -458,6 +678,15 @@
   }
   .footer-action:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
   .footer-action:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+  .copy-action-icon {
+    padding: 4px 7px; opacity: 0; transition: opacity 0.15s;
+  }
+  .copy-action-icon .icon svg { width: 14px; height: 14px; }
+  .msg:hover .copy-action-icon,
+  .msg:hover .msg-head-actions .copy-action-icon,
+  .think-disclosure summary:hover .copy-action-icon,
+  .tool-result-disclosure summary:hover .copy-action-icon { opacity: 1; }
+  @media (hover: none) { .copy-action-icon { opacity: 1; } }
 
   #chat-inner {
     max-width: none; margin: 0; padding: 0;
@@ -493,6 +722,13 @@
   }
   .thinking-dots span:nth-child(2) { animation-delay: 0.15s; }
   .thinking-dots span:nth-child(3) { animation-delay: 0.3s; }
+  .search-spinner {
+    width: 16px; height: 16px; border-radius: 50%; flex: none;
+    border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    border-top-color: var(--accent);
+    animation: spin 0.85s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .stream-cursor {
     display: inline-block; width: 2px; height: 1em; background: var(--accent);
     margin-left: 2px; vertical-align: -2px; animation: blink 0.9s steps(2) infinite;
@@ -574,7 +810,7 @@
         <h1>WebLLM</h1>
         <p class="brand-tagline">
           <strong>Private, on-device AI.</strong>
-          Runs entirely in your browser via WebGPU — no server, no API keys, and nothing you type leaves this device.
+          Inference and chat history stay in your browser via WebGPU. Optional Web Search sends search queries to the third-party Exa MCP service.
         </p>
       </div>
     </div>
@@ -600,7 +836,27 @@
       <details class="side-block" id="system-block" open>
         <summary>System prompt</summary>
         <div class="side-block-body">
-          <textarea id="system-prompt" placeholder="You are a helpful assistant…"></textarea>
+          <textarea id="system-prompt" placeholder="You are a helpful assistant."></textarea>
+        </div>
+      </details>
+      <details class="side-block" id="tools-block">
+        <summary>Tools</summary>
+        <div class="side-block-body">
+          <div class="field-group">
+            <div class="switch-row">
+              <span class="switch-label-wrap">
+                <label class="switch-label" for="web-search-toggle">Web search</label>
+                <button type="button" class="help-tip" id="web-search-help" aria-label="About web search" aria-describedby="web-search-help-text">
+                  ?
+                </button>
+              </span>
+              <label class="switch-wrap" for="web-search-toggle">
+                <input type="checkbox" id="web-search-toggle" class="switch-input" role="switch" aria-label="Web search">
+                <span class="switch-slider" aria-hidden="true"></span>
+              </label>
+              <span class="help-tip-text" id="web-search-help-text" role="tooltip">Enable to let the model search the web via Exa MCP when needed.</span>
+            </div>
+          </div>
         </div>
       </details>
       <details class="side-block" id="settings-block">
@@ -675,7 +931,7 @@
         <div class="empty-state" id="empty-state">
           <div class="empty-icon" id="empty-icon"></div>
           <h2>Your private AI chat</h2>
-          <p>Load a model below to start — everything runs locally in your browser.</p>
+          <p>Load a model below to start — inference runs locally in your browser.</p>
           <p class="empty-cache-hint" id="empty-cache-hint"></p>
           <div class="empty-state-loader" id="empty-loader">
             <div id="empty-banner-mount"></div>
@@ -721,1486 +977,36 @@
   </div>
 </dialog>
 
-<script type="module">
-import {
-  PREFS_KEY,
-  THEME_KEY,
-  ASSISTANT_LABEL,
-  APP_VERSION,
-  DEFAULT_MODEL_ID,
-  BROWSER_LABELS,
-} from "./lib/constants.js";
-import {
-  MODELS,
-  activeModelDef as pickActiveModel,
-  loadedModelDef as pickLoadedModel,
-  sessionModelId,
-  resolveModelIdForSession,
-  modelLabel,
-  modelSupportsThinking as modelHasThinking,
-} from "./lib/models.js";
-import {
-  esc,
-  fmtBytes,
-  formatTime,
-  formatStreamStats,
-  thinkLabel,
-  statsLine,
-  sessionDownloadFilename,
-} from "./lib/format.js";
-import {
-  buildMessages as buildMessagesForModel,
-  exportSessionOpenAI,
-  splitThinking,
-} from "./lib/messages.js";
-import {
-  sessionDateGroup,
-  filterSessions,
-  upsertSessionInList,
-  createSessionRecord,
-  firstMessageTitle,
-  normalizeSessionTitle,
-  SESSION_GROUP_ORDER,
-  canSendToModel,
-} from "./lib/sessions.js";
-import { generationErrorFallback } from "./lib/generation.js";
-import { detectBrowser } from "./lib/browser.js";
-import { computeLoadProgress } from "./lib/progress.js";
-import {
-  loadButtonLabel,
-  formatAllModelsCacheStatus,
-  isCacheCapable,
-  clampMaxNewTokens,
-} from "./lib/ui-state.js";
-import { buildPrefsPayload, parsePrefsJson } from "./lib/prefs.js";
-import { openSessionDB, dbGetAll, dbPut, dbDelete } from "./lib/session-storage.js";
-import { createDebouncer } from "./lib/debounce.js";
-import {
-  createCacheEnv,
-  getAllModelsCacheStats,
-  checkModelCached as isModelCached,
-  repairBrokenModelCache,
-  deleteModelCacheDatabases,
-  deleteAllModelCaches,
-} from "./lib/cache.js";
-
-"use strict";
-
-function activeModelDef() {
-  return pickActiveModel(state.selectedModelId);
-}
-
-function loadedModelDef() {
-  return pickLoadedModel(state.loadedModelId);
-}
-
-function modelSupportsThinking() {
-  return modelHasThinking(state.loadedModelId, state.selectedModelId);
-}
-
-function grammarConfig() {
-  return {
-    grammarMode: state.grammarMode,
-    jsonSchema: $("grammar-json-schema")?.value || "",
-    ebnf: $("grammar-custom")?.value || "",
-  };
-}
-
-function buildMessages(session) {
-  return buildMessagesForModel(session, grammarConfig());
-}
-
-function cacheEnv() {
-  return createCacheEnv({ fileOrigin: state.fileOrigin });
-}
-
-async function checkModelCached(def = activeModelDef()) {
-  return isModelCached(def, cacheEnv());
-}
-
-async function getAllModelsCacheStatsLocal() {
-  return getAllModelsCacheStats(cacheEnv());
-}
-
-async function deleteAllModelCacheDatabases() {
-  return deleteAllModelCaches(cacheEnv());
-}
-
-/* ── IndexedDB ── */
-
-async function patchSessionFields(session, fields) {
-  Object.assign(session, fields);
-  await dbPut(state.db, session);
-  const idx = state.sessions.findIndex(s => s.id === session.id);
-  if (idx >= 0) state.sessions[idx] = session;
-}
-
-const ICONS = {
-  webllm: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.75 8 7.25 12l2.5 4"/><path d="M14.25 8 16.75 12l-2.5 4"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 5.75v1.5M12 16.75v1.5"/></svg>',
-  user: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M6 20v-1a6 6 0 0 1 12 0v1"/></svg>',
-  spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z"/><path d="M5 3v4M3 5h4M19 17v4M17 19h4"/></svg>',
-  menu: '<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
-  plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
-  edit: '<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
-  trash: '<svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
-  close: '<svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>',
-  send: '<svg viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>',
-  stop: '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>',
-  sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
-  moon: '<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
-  chevron: '<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
-  copy: '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
-  download: '<svg viewBox="0 0 24 24"><path d="M12 3v10"/><path d="m8 11 4 4 4-4"/><path d="M5 21h14"/></svg>',
-  brain: '<svg viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3v1a2 2 0 0 0-2 2 2 2 0 0 0 0 4 2 2 0 0 0 2 2v1a3 3 0 0 0 3 3"/><path d="M15 4a3 3 0 0 1 3 3v1a2 2 0 0 1 2 2 2 2 0 0 1 0 4 2 2 0 0 1-2 2v1a3 3 0 0 1-3 3"/><path d="M9 7h6M9 17h6"/></svg>',
-};
-
-function icon(name) {
-  const span = document.createElement("span");
-  span.className = "icon";
-  span.innerHTML = ICONS[name] || "";
-  return span;
-}
-
-function setIcon(el, name) {
-  el.replaceChildren(icon(name));
-}
-
-const state = {
-  model: null,
-  loading: false,
-  busy: false,
-  abort: null,
-  webgpuOk: false,
-  webgpuBrowser: "other",
-  webgpuChecking: true,
-  // file:// is an opaque origin — IndexedDB unavailable — cache disabled intentionally.
-  // Production is static GitHub Pages (https://) — no server. Local dev: python3 -m http.server 8080
-  fileOrigin: typeof location !== "undefined" && location.protocol === "file:",
-  progress: { target: 0, shown: 0, raf: 0, label: "" },
-  sessions: [],
-  activeSessionId: null,
-  grammarMode: "off",
-  maxNewTokens: 4096,
-  db: null,
-  renamingSessionId: null,
-  sessionSearch: "",
-  okBannerTimer: null,
-  modelCached: false,
-  webgpuLabel: "",
-  modelLoadSecs: null,
-  selectedModelId: DEFAULT_MODEL_ID,
-  loadedModelId: null,
-  gemmaScriptPromise: null,
-  lfm2Runtime: null,
-};
-
-const $ = id => document.getElementById(id);
-
-/* ── Toast ── */
-
-function toast(message, { duration = 3000 } = {}) {
-  const el = document.createElement("div");
-  el.className = "toast";
-  el.innerHTML = `<span>${esc(message)}</span>`;
-  $("toast-stack").appendChild(el);
-  setTimeout(() => el.remove(), duration);
-}
-
-/* ── IndexedDB ── */
-
-async function openDB() {
-  return openSessionDB();
-}
-
-function uid() {
-  return crypto.randomUUID?.() || `s-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function activeSession() {
-  return state.sessions.find(s => s.id === state.activeSessionId) || null;
-}
-
-function isEmptyStateVisible() {
-  const session = activeSession();
-  return $("empty-state").style.display !== "none" && !session?.messages?.length;
-}
-
-async function persistSession(session) {
-  session.updatedAt = Date.now();
-  await dbPut(state.db, session);
-  state.sessions = upsertSessionInList(state.sessions, session);
-  savePrefs();
-  renderSessionList();
-  updateChatTitle();
-  mountWebGpuBanner();
-  updateEmptyLoader();
-}
-
-async function createSession(title = "New chat") {
-  const session = createSessionRecord({
-    id: uid(),
-    title,
-    selectedModelId: state.selectedModelId,
-    models: MODELS,
-  });
-  await persistSession(session);
-  state.activeSessionId = session.id;
-  savePrefs();
-  return session;
-}
-
-async function deleteSession(id) {
-  await dbDelete(state.db, id);
-  state.sessions = state.sessions.filter(s => s.id !== id);
-  if (state.activeSessionId === id) {
-    state.activeSessionId = state.sessions[0]?.id || null;
-    if (!state.activeSessionId) await createSession();
-  }
-  savePrefs();
-  renderSessionList();
-  renderChat();
-  syncUIFromSession();
-  mountWebGpuBanner();
-}
-
-async function renameSession(id, newTitle) {
-  const session = state.sessions.find(s => s.id === id);
-  if (!session) return;
-  session.title = normalizeSessionTitle(newTitle);
-  await persistSession(session);
-}
-
-function savePrefs() {
-  try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify(buildPrefsPayload({
-      activeSessionId: state.activeSessionId,
-      selectedModelId: state.selectedModelId,
-      grammarMode: state.grammarMode,
-      maxNewTokens: state.maxNewTokens,
-      grammarJsonSchema: $("grammar-json-schema")?.value || "",
-      grammarEbnf: $("grammar-custom")?.value || "",
-      sessionSearch: state.sessionSearch,
-      sidebarOpen: {
-        conversations: $("conversations-block")?.open,
-        system: $("system-block")?.open,
-        model: $("model-block")?.open,
-        settings: $("settings-block")?.open,
-        storage: $("storage-block")?.open,
-      },
-    })));
-  } catch { /* ignore */ }
-}
-
-function loadPrefs() {
-  const p = parsePrefsJson(localStorage.getItem(PREFS_KEY));
-  if (p.activeSessionId) state.activeSessionId = p.activeSessionId;
-  if (p.grammarMode) state.grammarMode = p.grammarMode;
-  if (MODELS[p.selectedModelId]) state.selectedModelId = p.selectedModelId;
-  if (typeof p.maxNewTokens === "number") state.maxNewTokens = p.maxNewTokens;
-  if (p.grammarJsonSchema) $("grammar-json-schema").value = p.grammarJsonSchema;
-  if (p.grammarEbnf) $("grammar-custom").value = p.grammarEbnf;
-  if (p.sessionSearch) { state.sessionSearch = p.sessionSearch; $("session-search").value = p.sessionSearch; }
-  if (p.sidebarOpen) {
-    if (typeof p.sidebarOpen.conversations === "boolean") $("conversations-block").open = p.sidebarOpen.conversations;
-    if (typeof p.sidebarOpen.system === "boolean") $("system-block").open = p.sidebarOpen.system;
-    if (typeof p.sidebarOpen.model === "boolean") $("model-block").open = p.sidebarOpen.model;
-    if (typeof p.sidebarOpen.settings === "boolean") $("settings-block").open = p.sidebarOpen.settings;
-    if (typeof p.sidebarOpen.storage === "boolean") $("storage-block").open = p.sidebarOpen.storage;
-  }
-}
-
-/* ── Theme ── */
-
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  setIcon($("theme-icon"), theme === "dark" ? "sun" : "moon");
-  try { localStorage.setItem(THEME_KEY, theme); } catch { /* ignore */ }
-}
-
-function initTheme() {
-  const saved = localStorage.getItem(THEME_KEY);
-  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
-  applyTheme(saved || (prefersDark ? "dark" : "light"));
-}
-
-/* ── Banner mounting (P0-4) ── */
-
-function mountWebGpuBanner() {
-  const banner = $("webgpu-banner");
-  if (!banner.classList.contains("show")) return;
-  const inline = isEmptyStateVisible();
-  const mount = inline ? $("empty-banner-mount") : $("banner-top-mount");
-  mount.appendChild(banner);
-  banner.classList.toggle("inline", inline);
-}
-
-/* ── WebGPU ── */
-
-function showWebGpuBanner(html, level = "error") {
-  if (state.okBannerTimer) { clearTimeout(state.okBannerTimer); state.okBannerTimer = null; }
-  const banner = $("webgpu-banner");
-  banner.classList.add("show");
-  banner.dataset.level = level;
-  banner.innerHTML = html;
-  mountWebGpuBanner();
-  if (level === "ok") {
-    state.okBannerTimer = setTimeout(hideWebGpuBanner, 5000);
-  }
-}
-
-function hideWebGpuBanner() {
-  if (state.okBannerTimer) { clearTimeout(state.okBannerTimer); state.okBannerTimer = null; }
-  const banner = $("webgpu-banner");
-  banner.classList.remove("show", "inline");
-  delete banner.dataset.level;
-  banner.innerHTML = "";
-}
-
-async function probeWebGPU() {
-  state.webgpuChecking = true;
-  state.webgpuBrowser = detectBrowser(navigator.userAgent);
-  setModelStatus("loading", "Checking WebGPU…");
-  updateComposerState();
-
-  const browserLabel = BROWSER_LABELS[state.webgpuBrowser] || "this browser";
-
-  if (!navigator.gpu) {
-    state.webgpuOk = false;
-    const extra = state.webgpuBrowser === "firefox"
-      ? " Firefox exposes WebGPU only behind <code>dom.webgpu.enabled</code> in <code>about:config</code>."
-      : " Use Chrome 113+, Edge 113+, or Safari 18+.";
-    showWebGpuBanner(`<strong>WebGPU API not found.</strong> ${browserLabel} does not expose WebGPU.${extra}`, "error");
-    state.webgpuChecking = false;
-    setModelStatus("error", "WebGPU unavailable");
-    updateComposerState();
-    return;
-  }
-
-  if (state.webgpuBrowser === "firefox") {
-    state.webgpuOk = false;
-    showWebGpuBanner("<strong>Firefox is not supported.</strong> This WebGPU runtime is known to fail in Firefox. Use Chrome, Edge, or Safari 18+.", "warn");
-    state.webgpuChecking = false;
-    setModelStatus("error", "Use Chrome / Safari");
-    updateComposerState();
-    return;
-  }
-
-  try {
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) {
-      state.webgpuOk = false;
-      showWebGpuBanner(`<strong>No WebGPU adapter found.</strong> ${browserLabel} reported WebGPU but no compatible GPU is available.`, "error");
-      state.webgpuChecking = false;
-      setModelStatus("error", "No GPU adapter");
-      updateComposerState();
-      return;
-    }
-
-    let adapterLabel = "";
-    try {
-      const info = adapter.info;
-      adapterLabel = info?.description || info?.device || "";
-    } catch { /* ignore */ }
-
-    state.webgpuOk = true;
-    hideWebGpuBanner();
-
-    if (state.webgpuBrowser === "safari") {
-      showWebGpuBanner(`<strong>WebGPU ready on Safari.</strong>${adapterLabel ? ` GPU: ${esc(adapterLabel)}.` : ""} Safari 18+ is supported.`, "ok");
-    } else if (state.webgpuBrowser === "other") {
-      showWebGpuBanner(`<strong>WebGPU detected.</strong>${adapterLabel ? ` GPU: ${esc(adapterLabel)}.` : ""} Chrome, Edge, and Safari work best.`, "warn");
-    }
-
-    state.webgpuChecking = false;
-    state.webgpuLabel = adapterLabel ? `WebGPU · ${adapterLabel}` : `WebGPU · ${browserLabel}`;
-    setModelStatus("", state.webgpuLabel);
-  } catch (err) {
-    state.webgpuOk = false;
-    showWebGpuBanner(`<strong>WebGPU check failed.</strong> ${esc(err?.message || err)}`, "error");
-    state.webgpuChecking = false;
-    setModelStatus("error", "WebGPU check failed");
-  }
-  updateComposerState();
-}
-
-/* ── Model loading (P0-4) ── */
-
-function updateProgressUI(pct, label) {
-  const w = (pct * 100).toFixed(1) + "%";
-  $("load-bar").style.width = w;
-  $("loader-bar-fill").style.width = w;
-  if (label) {
-    $("loader-status").textContent = label;
-    state.progress.label = label;
-  }
-}
-
-function setProgressTarget(v) {
-  if (!Number.isFinite(v)) return;
-  state.progress.target = Math.min(1, Math.max(0, Math.max(v, state.progress.target)));
-  if (!state.progress.raf) state.progress.raf = requestAnimationFrame(stepBar);
-}
-
-function stepBar() {
-  const p = state.progress;
-  p.shown += Math.abs(p.target - p.shown) < 0.0015 ? (p.target - p.shown) : (p.target - p.shown) * 0.3;
-  updateProgressUI(p.shown, p.label);
-  p.raf = p.shown < p.target ? requestAnimationFrame(stepBar) : 0;
-}
-
-function setProgressImmediate(v, label) {
-  if (state.progress.raf) { cancelAnimationFrame(state.progress.raf); state.progress.raf = 0; }
-  state.progress.target = state.progress.shown = Math.min(1, Math.max(0, v));
-  updateProgressUI(state.progress.shown, label);
-}
-
-/* ── Model cache (IndexedDB + Cache Storage via runtime) ── */
-
-async function requestPersistentStorage() {
-  if (!navigator.storage?.persist) return false;
-  try { return await navigator.storage.persist(); } catch { return false; }
-}
-
-async function repairBrokenModelCacheLocal() {
-  const repaired = await repairBrokenModelCache(
-    MODELS.gemma4,
-    cacheEnv(),
-    def => deleteModelCacheDatabases(def, cacheEnv()).catch(() => {}),
-  );
-  if (repaired) {
-    console.warn("Removed incomplete model cache database (missing object stores).");
-  }
-}
-
-async function clearModelCache() {
-  if (state.loading || state.busy) {
-    toast("Wait until the model finishes loading.");
-    return false;
-  }
-  const hadLoadedModel = !!state.model;
-  if (hadLoadedModel) await unloadModel();
-  try {
-    await deleteAllModelCacheDatabases();
-  } catch (err) {
-    toast(err?.message || "Could not clear model cache");
-    return false;
-  }
-  state.modelCached = await checkModelCached(activeModelDef());
-  await refreshStorageUI();
-  toast("All model caches cleared.");
-  if (hadLoadedModel) {
-    toast("Model unloaded. Load again to re-download weights.");
-  }
-  return true;
-}
-
-function updateStorageButtons() {
-  const clearBtn = $("clear-model-cache-btn");
-  if (!clearBtn) return;
-  const busy = state.loading || state.busy;
-  const cacheCapable = isCacheCapable({
-    fileOrigin: state.fileOrigin,
-    caches: globalThis.caches,
-    indexedDB: globalThis.indexedDB,
-    models: MODELS,
-  });
-  clearBtn.disabled = !cacheCapable || busy;
-  clearBtn.title = state.fileOrigin
-    ? "Caching unavailable on file://"
-    : (!cacheCapable ? "Caching not supported in this browser context" : "Clear cached weights for all models");
-}
-
-function updateEmptyCacheHint() {
-  const hint = $("empty-cache-hint");
-  if (!hint) return;
-  const def = activeModelDef();
-  if (state.fileOrigin) {
-    hint.textContent = "";
-    return;
-  }
-  if (state.modelCached) {
-    hint.textContent = `${def.name} cached locally · loads in seconds.`;
-  } else {
-    hint.textContent = `First load downloads ${def.downloadHint} (one-time).`;
-  }
-}
-
-async function ensureGemmaRuntime() {
-  if (typeof globalThis.Gemma4Mobile === "function") return true;
-  if (!state.gemmaScriptPromise) {
-    state.gemmaScriptPromise = new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = "gemma-4-e2b.js";
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error("Failed to load Gemma runtime"));
-      document.head.appendChild(script);
-    });
-  }
-  try {
-    await state.gemmaScriptPromise;
-  } catch (err) {
-    console.error(err);
-    state.gemmaScriptPromise = null;
-    return false;
-  }
-  return typeof globalThis.Gemma4Mobile === "function";
-}
-
-async function ensureRuntime(def = activeModelDef()) {
-  if (!def) return false;
-  if (def.runtime === "gemma") return ensureGemmaRuntime();
-  if (!state.lfm2Runtime) {
-    try {
-      const mod = await import("./lfm2_5.js");
-      state.lfm2Runtime = mod.Lfm2Mobile;
-    } catch (err) {
-      console.error(err);
-      return false;
-    }
-  }
-  return !!state.lfm2Runtime;
-}
-
-function resetLoadedModel() {
-  if (!state.model || typeof state.model.reset !== "function") return;
-  try { state.model.reset(); } catch { /* ignore */ }
-}
-
-async function unloadModel() {
-  if (state.busy || state.loading) return false;
-  if (!state.model) {
-    state.loadedModelId = null;
-    return true;
-  }
-  try {
-    if (typeof state.model.reset === "function") await state.model.reset();
-    if (typeof state.model.dispose === "function") await state.model.dispose();
-  } catch { /* ignore */ }
-  state.model = null;
-  state.loadedModelId = null;
-  state.modelLoadSecs = null;
-  restoreIdleStatus();
-  updateComposerState();
-  renderModelPicker();
-  return true;
-}
-
-function renderModelPicker() {
-  const picker = $("model-picker");
-  if (!picker) return;
-  const busy = state.loading || state.busy;
-  picker.innerHTML = Object.values(MODELS).map(def => {
-    const active = def.id === state.selectedModelId;
-    const loaded = state.loadedModelId === def.id && !!state.model;
-    return `
-      <label class="model-option${active ? " active" : ""}${busy ? " disabled" : ""}">
-        <input type="radio" name="model-id" value="${esc(def.id)}"${active ? " checked" : ""}${busy ? " disabled" : ""}>
-        <span class="model-option-name">${esc(def.name)}</span>
-        <span class="model-option-meta">${esc(def.subtitle)}</span>
-        ${loaded ? '<span class="model-option-badge">Loaded</span>' : ""}
-      </label>`;
-  }).join("");
-}
-
-async function applyModelSelection(modelId, { silent = false, persistToSession = true } = {}) {
-  if (!MODELS[modelId]) modelId = DEFAULT_MODEL_ID;
-  const needsUnload = state.model && state.loadedModelId && state.loadedModelId !== modelId;
-  if (modelId === state.selectedModelId && !needsUnload) {
-    renderModelPicker();
-    return;
-  }
-  if (state.busy || state.loading) {
-    if (!silent) {
-      toast("Can't switch models while loading or generating.");
-      renderModelPicker();
-    }
-    return;
-  }
-  if (state.model && state.loadedModelId && state.loadedModelId !== modelId) {
-    await unloadModel();
-    if (!silent) toast(`Switched to ${MODELS[modelId].name}. Load the model when ready.`);
-  }
-  state.selectedModelId = modelId;
-  if (persistToSession) {
-    const session = activeSession();
-    if (session && session.modelId !== modelId) {
-      await patchSessionFields(session, { modelId });
-      renderSessionList();
-    }
-  }
-  savePrefs();
-  renderModelPicker();
-  await refreshStorageUI();
-  updateEmptyCacheHint();
-}
-
-async function selectModel(modelId) {
-  await applyModelSelection(modelId, { silent: false, persistToSession: true });
-}
-
-function syncModelFromSession(session = activeSession()) {
-  if (!session) return;
-  state.selectedModelId = resolveModelIdForSession(session, state.selectedModelId);
-  renderModelPicker();
-}
-
-async function refreshStorageUI() {
-  const def = activeModelDef();
-  state.modelCached = await checkModelCached(def);
-  const statusText = $("storage-status-text");
-  if (statusText) {
-    if (state.fileOrigin) {
-      statusText.hidden = true;
-    } else {
-      statusText.hidden = false;
-      const cacheOk = isCacheCapable({
-        fileOrigin: state.fileOrigin,
-        caches: globalThis.caches,
-        indexedDB: globalThis.indexedDB,
-        models: MODELS,
-      });
-      if (!cacheOk) {
-        statusText.textContent = "Caching not available";
-      } else {
-        const stats = await getAllModelsCacheStatsLocal();
-        statusText.textContent = formatAllModelsCacheStatus(stats);
-      }
-    }
-  }
-  updateStorageButtons();
-  updateEmptyCacheHint();
-  updateComposerState();
-}
-
-function restoreIdleStatus() {
-  if (state.busy || state.loading) return;
-  if (state.model && state.webgpuLabel) setModelStatus("ready", state.webgpuLabel);
-  else if (state.webgpuLabel) setModelStatus("", state.webgpuLabel);
-  else if (!state.webgpuOk) setModelStatus("error", "WebGPU unavailable");
-  else setModelStatus("", "Not loaded");
-}
-
-function onLoadProgress(event) {
-  const { target, label } = computeLoadProgress(event, activeModelDef());
-  if (target != null) setProgressTarget(target);
-  state.progress.label = label;
-  setModelStatus("loading", label);
-}
-
-function setModelStatus(kind, text) {
-  const full = text || "Not loaded";
-  $("model-status").className = "status-chip" + (kind ? ` ${kind}` : "");
-  $("model-status").title = full;
-  $("model-status-text").textContent = full;
-  if (isEmptyStateVisible() && state.loading && $("empty-loader-progress").hidden === false) {
-    $("loader-status").textContent = full;
-  }
-}
-
-function updateEmptyLoader() {
-  const empty = isEmptyStateVisible();
-  const showHero = empty && !state.model;
-  $("empty-loader").style.display = showHero ? "" : "none";
-  if (!showHero) return;
-
-  if (state.loading) {
-    $("empty-loader-idle").hidden = true;
-    $("empty-loader-progress").hidden = false;
-  } else {
-    $("empty-loader-idle").hidden = false;
-    $("empty-loader-progress").hidden = true;
-  }
-  mountWebGpuBanner();
-}
-
-function updateComposerState() {
-  const canSend = state.model && !state.busy && !state.loading;
-  $("user-input").disabled = !canSend;
-  $("send-btn").disabled = !canSend;
-  $("send-btn").style.display = state.busy ? "none" : "";
-  $("stop-btn").style.display = state.busy ? "" : "none";
-
-  const loadDisabled = state.loading || state.busy || !state.webgpuOk || state.webgpuChecking || !!state.model;
-  for (const btn of [$("load-model-btn"), $("load-model-btn-hero")]) {
-    if (!btn) continue;
-    btn.disabled = loadDisabled;
-    btn.textContent = loadButtonLabel({
-      model: state.model,
-      loading: state.loading,
-      modelCached: state.modelCached,
-      fileOrigin: state.fileOrigin,
-      isHero: btn.id === "load-model-btn-hero",
-    });
-    btn.title = state.model && state.modelLoadSecs ? `Loaded in ${state.modelLoadSecs}s` : "";
-  }
-
-  const topbarBtn = $("load-model-btn");
-  if (topbarBtn) {
-    topbarBtn.classList.toggle("primary", !isEmptyStateVisible() && !state.model);
-    topbarBtn.hidden = isEmptyStateVisible() && !state.model && !state.loading;
-  }
-
-  updateEmptyLoader();
-  updateStorageButtons();
-}
-
-async function loadModel() {
-  if (state.model || state.loading || !state.webgpuOk) return;
-  const def = activeModelDef();
-  if (!(await ensureRuntime(def))) {
-    setModelStatus("error", "Runtime missing");
-    toast("Model runtime could not be loaded");
-    return;
-  }
-  state.loading = true;
-  updateComposerState();
-  renderModelPicker();
-  $("load-bar-wrap").classList.add("show");
-  setProgressImmediate(0.02, "Requesting WebGPU…");
-  setModelStatus("loading", "Requesting WebGPU…");
-  const started = performance.now();
-  try {
-    const loadOpts = {
-      onProgress: onLoadProgress,
-      cacheName: def.cacheName,
-      revision: def.revision,
-    };
-    if (state.fileOrigin) loadOpts.cache = false;
-    if (def.runtime === "gemma") {
-      state.model = await globalThis.Gemma4Mobile.load(null, loadOpts);
-    } else {
-      state.model = await state.lfm2Runtime.load(def.hubId, loadOpts);
-    }
-    setModelStatus("loading", "Warming up…");
-    state.progress.label = "Warming up…";
-    setProgressTarget(0.99);
-    await state.model.warmup();
-    setProgressImmediate(1, "Model ready");
-    state.modelLoadSecs = ((performance.now() - started) / 1000).toFixed(1);
-    state.loadedModelId = def.id;
-    restoreIdleStatus();
-    setTimeout(() => $("load-bar-wrap").classList.remove("show"), 500);
-    requestPersistentStorage();
-    state.modelCached = await checkModelCached(def);
-    if (!state.modelCached && !state.fileOrigin) {
-      toast("Model loaded, but couldn't be cached (browser may be low on storage). It will re-download next time.");
-    }
-    await refreshStorageUI();
-    renderModelPicker();
-  } catch (err) {
-    console.error(err);
-    setModelStatus("error", `Failed · ${err?.message || err}`);
-    toast(`Model failed to load: ${err?.message || err}`);
-    state.model = null;
-    state.loadedModelId = null;
-    state.modelLoadSecs = null;
-  } finally {
-    state.loading = false;
-    updateComposerState();
-    renderModelPicker();
-  }
-}
-
-/* ── Export ── */
-
-function downloadSession(sessionId) {
-  const session = state.sessions.find(s => s.id === sessionId);
-  if (!session) return;
-  const messages = exportSessionOpenAI(session);
-  if (!messages.length) {
-    toast("Nothing to download — this conversation is empty");
-    return;
-  }
-  const json = JSON.stringify(messages, null, 2);
-  const blob = new Blob([json], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = sessionDownloadFilename(session.title);
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-  toast(`Downloaded "${session.title}"`);
-}
-
-function createAvatar(kind) {
-  const av = document.createElement("div");
-  av.className = `avatar ${kind}`;
-  setIcon(av, kind === "user" ? "user" : "spark");
-  return av;
-}
-
-function createMsgShell(roleName) {
-  const inner = document.createElement("div");
-  inner.className = "msg-inner";
-  const body = document.createElement("div");
-  body.className = "msg-body";
-  const card = document.createElement("div");
-  card.className = "msg-card";
-  const role = document.createElement("div");
-  role.className = "msg-role";
-  role.textContent = roleName;
-  card.appendChild(role);
-  body.appendChild(card);
-  return { inner, body, card };
-}
-
-function buildUserMessage(content) {
-  const wrap = document.createElement("div");
-  wrap.className = "msg user";
-  const shell = createMsgShell("You");
-  shell.inner.append(createAvatar("user"), shell.body);
-  const contentEl = document.createElement("div");
-  contentEl.className = "msg-content";
-  contentEl.textContent = content;
-  shell.card.appendChild(contentEl);
-  wrap.appendChild(shell.inner);
-  return wrap;
-}
-
-function buildAssistantMessage(msg, { streaming = false } = {}) {
-  const wrap = document.createElement("div");
-  wrap.className = "msg assistant" + (streaming ? " streaming" : "");
-  if (streaming) wrap.id = "streaming-msg";
-
-  const shell = createMsgShell(ASSISTANT_LABEL);
-  shell.inner.append(createAvatar("assistant"), shell.body);
-
-  const thinking = msg?.thinking || "";
-  const content = msg?.content || "";
-  const disclosure = buildThinkingDisclosure(thinking, msg?.meta, { streaming, open: streaming && !content });
-  if (disclosure) shell.card.appendChild(disclosure);
-
-  const response = document.createElement("div");
-  response.className = "response-content";
-  if (!streaming || content) response.textContent = content;
-  shell.card.appendChild(response);
-
-  if (!streaming) {
-    shell.card.appendChild(buildMsgFooter(content, msg?.meta));
-  } else {
-    const footer = document.createElement("div");
-    footer.className = "msg-footer stream-footer";
-    const stats = document.createElement("span");
-    stats.className = "msg-stats-inline";
-    stats.textContent = "…";
-    footer.appendChild(stats);
-    shell.card.appendChild(footer);
-  }
-
-  wrap.appendChild(shell.inner);
-  return wrap;
-}
-
-function buildThinkingDisclosure(thinking, meta, { streaming = false, open = false } = {}) {
-  if (!streaming && !thinking) return null;
-  if (streaming && !thinking && !modelSupportsThinking()) return null;
-  const details = document.createElement("details");
-  details.className = "think-disclosure";
-  if (open) details.open = true;
-
-  const summary = document.createElement("summary");
-  const label = document.createElement("span");
-  label.className = "think-label";
-  label.textContent = streaming && !thinking ? "Thinking…" : thinkLabel(meta, thinking);
-  const chev = icon("chevron");
-  chev.classList.add("chevron");
-  summary.append(icon("brain"), label, chev);
-
-  const content = document.createElement("div");
-  content.className = "think-content";
-  if (streaming && !thinking) {
-    content.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div>';
-  } else {
-    content.textContent = thinking;
-  }
-
-  details.append(summary, content);
-  return details;
-}
-
-function buildMsgFooter(content, meta) {
-  const footer = document.createElement("div");
-  footer.className = "msg-footer";
-  const copyBtn = document.createElement("button");
-  copyBtn.type = "button";
-  copyBtn.className = "footer-action";
-  copyBtn.dataset.copy = "1";
-  copyBtn.append(icon("copy"));
-  const copyLabel = document.createElement("span");
-  copyLabel.className = "copy-label";
-  copyLabel.textContent = " Copy";
-  copyBtn.append(copyLabel);
-  const stats = document.createElement("span");
-  stats.className = "msg-stats-inline";
-  stats.textContent = statsLine(meta);
-  footer.append(copyBtn, stats);
-  copyBtn._copyText = content;
-  return footer;
-}
-
-/* ── Rendering ── */
-
-function updateChatTitle() {
-  const session = activeSession();
-  $("chat-title").textContent = session?.title || "New chat";
-}
-
-function startRenameSession(id) {
-  state.renamingSessionId = id;
-  renderSessionList();
-}
-
-function finishRenameSession(id, value) {
-  state.renamingSessionId = null;
-  renameSession(id, value);
-}
-
-function startRenameActiveChat() {
-  const session = activeSession();
-  if (!session) return;
-  const wrap = $("chat-title").parentElement;
-  const input = document.createElement("input");
-  input.type = "text";
-  input.className = "chat-title-input";
-  input.value = session.title;
-  input.maxLength = 80;
-  wrap.replaceChildren(input);
-  input.focus();
-  input.select();
-  let done = false;
-  const restore = () => {
-    const h = document.createElement("h2");
-    h.className = "chat-title";
-    h.id = "chat-title";
-    h.textContent = activeSession()?.title || "New chat";
-    h.addEventListener("dblclick", startRenameActiveChat);
-    const edit = document.createElement("button");
-    edit.type = "button";
-    edit.className = "chat-title-edit";
-    edit.id = "chat-title-edit";
-    edit.setAttribute("aria-label", "Rename conversation");
-    edit.title = "Rename";
-    edit.addEventListener("click", startRenameActiveChat);
-    setIcon(edit, "edit");
-    wrap.replaceChildren(h, edit);
-  };
-  const commit = () => {
-    if (done) return;
-    done = true;
-    renameSession(session.id, input.value);
-    restore();
-  };
-  input.addEventListener("blur", commit);
-  input.addEventListener("keydown", e => {
-    if (e.key === "Enter") { e.preventDefault(); input.blur(); }
-    if (e.key === "Escape") { done = true; restore(); }
-  });
-}
-
-function bindSessionDeleteConfirm(btn) {
-  btn.addEventListener("click", e => {
-    e.stopPropagation();
-    const row = btn.closest(".session-item");
-    const sessionId = btn.dataset.del;
-    const title = row.querySelector(".session-title")?.textContent || "Conversation";
-    const actions = row.querySelector(".session-actions");
-    row.classList.add("confirming");
-    actions.innerHTML = `
-      <span class="confirm-label">Delete?</span>
-      <button type="button" class="icon-btn" data-cancel aria-label="Cancel"></button>
-      <button type="button" class="icon-btn danger" data-confirm aria-label="Confirm delete"></button>`;
-    setIcon(actions.querySelector("[data-cancel]"), "close");
-    setIcon(actions.querySelector("[data-confirm]"), "trash");
-
-    const revert = () => {
-      row.classList.remove("confirming");
-      renderSessionList();
-    };
-    let timer = setTimeout(revert, 4000);
-    actions.querySelector("[data-cancel]").onclick = ev => { ev.stopPropagation(); clearTimeout(timer); revert(); };
-    actions.querySelector("[data-confirm]").onclick = async ev => {
-      ev.stopPropagation();
-      clearTimeout(timer);
-      await deleteSession(sessionId);
-      toast(`"${title}" deleted`);
-    };
-  });
-}
-
-function renderSessionList() {
-  const list = $("session-list");
-  const sessions = filterSessions(state.sessions, state.sessionSearch);
-  $("session-search-wrap").classList.toggle("show", state.sessions.length > 8);
-  const countEl = $("conv-count");
-  if (countEl) countEl.textContent = state.sessions.length ? `(${state.sessions.length})` : "";
-
-  if (!sessions.length) {
-    list.innerHTML = `<div style="padding:8px 12px;font-size:12px;color:var(--text-muted)">${state.sessionSearch ? "No matches" : "No conversations"}</div>`;
-    return;
-  }
-
-  const groups = new Map();
-  for (const s of sessions) {
-    const g = sessionDateGroup(s.updatedAt);
-    if (!groups.has(g)) groups.set(g, []);
-    groups.get(g).push(s);
-  }
-  const order = SESSION_GROUP_ORDER;
-  list.innerHTML = order.filter(g => groups.has(g)).map(g => {
-    const items = groups.get(g).map(s => {
-      const renaming = state.renamingSessionId === s.id;
-      return `
-        <div class="session-item ${s.id === state.activeSessionId ? "active" : ""}" data-id="${esc(s.id)}" tabindex="0">
-          <div class="session-row">
-            ${renaming
-              ? `<input class="session-title-input" data-rename-input="${esc(s.id)}" value="${esc(s.title)}">`
-              : `<span class="session-title" title="${esc(s.title)}">${esc(s.title)}</span>`}
-            <div class="session-actions">
-              <button type="button" class="icon-btn" data-rename="${esc(s.id)}" aria-label="Rename" title="Rename"></button>
-              <button type="button" class="icon-btn" data-download="${esc(s.id)}" aria-label="Download conversation" title="Download JSON"></button>
-              <button type="button" class="icon-btn danger" data-del="${esc(s.id)}" aria-label="Delete" title="Delete"></button>
-            </div>
-          </div>
-          <div class="session-meta">${esc(modelLabel(resolveModelIdForSession(s, state.selectedModelId)))} · ${s.messages.length} messages · ${formatTime(s.updatedAt)}</div>
-        </div>`;
-    }).join("");
-    return `<div class="session-group-label">${g}</div>${items}`;
-  }).join("");
-
-  list.querySelectorAll(".session-item").forEach(el => {
-    el.addEventListener("click", e => {
-      if (e.target.closest(".icon-btn") || e.target.closest("input")) return;
-      switchSession(el.dataset.id);
-    });
-    el.addEventListener("keydown", e => {
-      if (e.key === "Enter" && !e.target.closest("input")) switchSession(el.dataset.id);
-    });
-  });
-  list.querySelectorAll("[data-rename]").forEach(btn => {
-    setIcon(btn, "edit");
-    btn.addEventListener("click", e => { e.stopPropagation(); startRenameSession(btn.dataset.rename); });
-  });
-  list.querySelectorAll("[data-download]").forEach(btn => {
-    setIcon(btn, "download");
-    btn.addEventListener("click", e => { e.stopPropagation(); downloadSession(btn.dataset.download); });
-  });
-  list.querySelectorAll("[data-del]").forEach(btn => {
-    setIcon(btn, "trash");
-    bindSessionDeleteConfirm(btn);
-  });
-  list.querySelectorAll("[data-rename-input]").forEach(input => {
-    input.addEventListener("click", e => e.stopPropagation());
-    input.focus();
-    input.select();
-    const commit = () => finishRenameSession(input.dataset.renameInput, input.value);
-    input.addEventListener("blur", commit);
-    input.addEventListener("keydown", e => {
-      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
-      if (e.key === "Escape") { state.renamingSessionId = null; renderSessionList(); }
-    });
-  });
-}
-
-function syncUIFromSession() {
-  const session = activeSession();
-  if (!session) return;
-  $("system-prompt").value = session.systemPrompt || "";
-  syncModelFromSession(session);
-  updateChatTitle();
-  updateGrammarUI();
-}
-
-function updateGrammarUI() {
-  document.querySelectorAll("#grammar-modes .seg-btn").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.mode === state.grammarMode);
-  });
-  $("grammar-json-wrap").classList.toggle("show", state.grammarMode === "json");
-  $("grammar-ebnf-wrap").classList.toggle("show", state.grammarMode === "ebnf");
-  $("max-tokens").value = state.maxNewTokens;
-}
-
-function renderChat() {
-  const session = activeSession();
-  const container = $("chat-messages");
-  const empty = $("empty-state");
-  container.replaceChildren();
-
-  if (!session?.messages.length) {
-    empty.style.display = "";
-    mountWebGpuBanner();
-    updateEmptyLoader();
-    return;
-  }
-  empty.style.display = "none";
-
-  for (const msg of session.messages) {
-    if (msg.role === "user") {
-      container.appendChild(buildUserMessage(msg.content));
-    } else {
-      container.appendChild(buildAssistantMessage(msg));
-    }
-  }
-  mountWebGpuBanner();
-  $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
-}
-
-/* ── Streaming ── */
-
-let renderScheduled = false, renderState = null;
-
-function createStreamingMessage() {
-  $("empty-state").style.display = "none";
-  $("chat-messages").appendChild(buildAssistantMessage(null, { streaming: true }));
-  mountWebGpuBanner();
-  $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
-}
-
-function scheduleStreamRender() {
-  if (renderScheduled) return;
-  renderScheduled = true;
-  requestAnimationFrame(() => { renderScheduled = false; if (renderState) renderStreamFrame(renderState); });
-}
-
-function renderStreamFrame({ raw, tokCount, tps, ttft }) {
-  const { thinking, output } = splitThinking(raw);
-  const msgEl = $("streaming-msg");
-  if (!msgEl) return;
-
-  const tokStr = formatStreamStats({ tokCount, tps, ttft: null });
-  const fullStr = formatStreamStats({ tokCount, tps, ttft });
-
-  const disclosure = msgEl.querySelector(".think-disclosure");
-  const thinkContent = msgEl.querySelector(".think-content");
-  const thinkLabelEl = msgEl.querySelector(".think-label");
-  const response = msgEl.querySelector(".response-content");
-  const footer = msgEl.querySelector(".stream-footer");
-  const stats = msgEl.querySelector(".msg-stats-inline");
-
-  if ((thinking || !output) && modelSupportsThinking()) {
-    if (!disclosure) {
-      const card = msgEl.querySelector(".msg-card");
-      const disc = buildThinkingDisclosure(thinking, null, { streaming: true, open: true });
-      card.insertBefore(disc, response);
-    }
-    if (thinkContent) {
-      if (thinking) thinkContent.textContent = thinking;
-      else thinkContent.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div>';
-    }
-    if (thinkLabelEl) {
-      thinkLabelEl.textContent = thinking
-        ? formatStreamStats({ tokCount, tps, ttft: null, prefix: "Thinking…" })
-        : "Thinking…";
-    }
-    if (disclosure) disclosure.open = !output;
-  } else if (disclosure) {
-    disclosure.open = false;
-    if (thinkLabelEl && thinking) {
-      thinkLabelEl.textContent = formatStreamStats({ tokCount, tps, ttft: null, prefix: "Thought" });
-    }
-  }
-
-  if (response) {
-    response.textContent = output;
-    if (output) {
-      const c = document.createElement("span");
-      c.className = "stream-cursor";
-      response.appendChild(c);
-    }
-  }
-
-  let respMeta = msgEl.querySelector(".response-stream-meta");
-  if (output) {
-    if (!respMeta) {
-      respMeta = document.createElement("div");
-      respMeta.className = "response-stream-meta";
-      response.insertAdjacentElement("afterend", respMeta);
-    }
-    respMeta.textContent = tokStr;
-    respMeta.hidden = false;
-  } else if (respMeta) {
-    respMeta.hidden = true;
-  }
-
-  if (stats) stats.textContent = fullStr;
-  if (footer && output) {
-    const copyBtn = footer.querySelector("[data-copy]");
-    if (!copyBtn) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "footer-action";
-      btn.dataset.copy = "1";
-      btn.append(icon("copy"));
-      const copyLabel = document.createElement("span");
-      copyLabel.className = "copy-label";
-      copyLabel.textContent = " Copy";
-      btn.append(copyLabel);
-      btn._copyText = output;
-      footer.insertBefore(btn, stats);
-    } else {
-      copyBtn._copyText = output;
-    }
-  }
-
-  if (state.busy) setModelStatus("busy", fullStr);
-
-  $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
-}
-
-function removeStreamingMessage() {
-  $("streaming-msg")?.remove();
-}
-
-/* ── Copy handler ── */
-
-$("chat-messages").addEventListener("click", async e => {
-  const btn = e.target.closest("[data-copy]");
-  if (!btn) return;
-  const text = btn._copyText || btn.closest(".msg.assistant")?.querySelector(".response-content")?.textContent || "";
-  try {
-    await navigator.clipboard.writeText(text);
-    const label = btn.querySelector(".copy-label") || (() => {
-      const span = document.createElement("span");
-      span.className = "copy-label";
-      span.textContent = " Copy";
-      btn.appendChild(span);
-      return span;
-    })();
-    label.textContent = " Copied";
-    toast("Copied to clipboard");
-    setTimeout(() => { label.textContent = " Copy"; }, 1500);
-  } catch {
-    toast("Copy failed");
-  }
-});
-
-/* ── Send ── */
-
-async function switchSession(id) {
-  if (id === state.activeSessionId) return;
-  const session = state.sessions.find(s => s.id === id);
-  if (!session) return;
-  state.activeSessionId = id;
-  savePrefs();
-  renderSessionList();
-  renderChat();
-  syncUIFromSession();
-  const modelId = resolveModelIdForSession(session, state.selectedModelId);
-  if (!session.modelId) await patchSessionFields(session, { modelId });
-  await applyModelSelection(modelId, { silent: true, persistToSession: false });
-  resetLoadedModel();
-  $("sidebar").classList.remove("open");
-}
-
-async function sendMessage() {
-  const input = $("user-input");
-  const text = input.value.trim();
-  const session = activeSession();
-  const expectedModelId = resolveModelIdForSession(session, state.selectedModelId);
-  const sendCheck = canSendToModel({
-    text,
-    model: state.model,
-    busy: state.busy,
-    loadedModelId: state.loadedModelId,
-    expectedModelId,
-  });
-  if (!sendCheck.ok) {
-    if (sendCheck.reason === "model_mismatch") {
-      toast(`Load ${modelLabel(expectedModelId)} before sending in this chat.`);
-    }
-    return;
-  }
-  if (!session) return;
-
-  session.systemPrompt = $("system-prompt").value;
-  if (!session.modelId) session.modelId = state.selectedModelId;
-  session.messages.push({ role: "user", content: text });
-  if (session.messages.length === 1) session.title = firstMessageTitle(text);
-  await persistSession(session);
-
-  input.value = "";
-  input.style.height = "auto";
-  renderChat();
-
-  state.busy = true;
-  state.abort = new AbortController();
-  updateComposerState();
-  setModelStatus("busy", "Generating…");
-  createStreamingMessage();
-
-  let raw = "", startedAt = 0, firstTokenAt = 0, generatedTokens = 0;
-  try {
-    const stream = state.model.generate(buildMessages(session), {
-      maxNewTokens: state.maxNewTokens,
-      signal: state.abort.signal,
-    });
-    startedAt = performance.now();
-    for await (const { text: streamed } of stream) {
-      const now = performance.now();
-      if (!firstTokenAt) firstTokenAt = now;
-      generatedTokens++;
-      raw = streamed;
-      const decodeSec = Math.max((now - firstTokenAt) / 1000, 1e-9);
-      const tps = generatedTokens > 1 ? Math.round((generatedTokens - 1) / decodeSec) : 0;
-      renderState = {
-        raw, tokCount: generatedTokens, tps,
-        ttft: firstTokenAt ? ((firstTokenAt - startedAt) / 1000).toFixed(1) : null,
-      };
-      scheduleStreamRender();
-    }
-  } catch (err) {
-    console.error(err);
-    const fallback = generationErrorFallback(err, { raw });
-    raw = fallback.raw;
-    if (fallback.toast) toast(fallback.toast);
-  } finally {
-    const endedAt = performance.now();
-    const decodeSec = Math.max((endedAt - firstTokenAt) / 1000, 1e-9);
-    const tps = generatedTokens > 1 ? ((generatedTokens - 1) / decodeSec).toFixed(1) : "0";
-    const ttft = firstTokenAt ? ((firstTokenAt - startedAt) / 1000).toFixed(1) : "0";
-    const { thinking, output } = splitThinking(raw);
-    removeStreamingMessage();
-    session.messages.push({
-      role: "assistant",
-      content: output || raw || "(no output)",
-      thinking: thinking || "",
-      meta: { tokens: generatedTokens, tps, ttft },
-    });
-    await persistSession(session);
-    renderChat();
-    state.busy = false;
-    state.abort = null;
-    restoreIdleStatus();
-    updateComposerState();
-  }
-}
-
-/* ── Init ── */
-
-function autoResizeTextarea(el) {
-  el.style.height = "auto";
-  el.style.height = Math.min(el.scrollHeight, 160) + "px";
-}
-
-function initStaticIcons() {
-  setIcon($("brand-icon"), "webllm");
-  setIcon($("empty-icon"), "webllm");
-  setIcon($("sidebar-toggle"), "menu");
-  setIcon($("chat-title-edit"), "edit");
-  setIcon($("send-btn"), "send");
-  setIcon($("credits-dialog-close"), "close");
-  const newBtn = $("new-chat-btn");
-  newBtn.append(icon("plus"), document.createTextNode(" New conversation"));
-  const versionEl = $("app-version");
-  if (versionEl) {
-    versionEl.setAttribute("aria-label", `App version ${APP_VERSION}`);
-    versionEl.innerHTML = `<span class="version-label">Version</span><span class="version-num">${APP_VERSION}</span>`;
-  }
-}
-
-async function init() {
-  initStaticIcons();
-  initTheme();
-
-  try {
-    state.db = await openDB();
-    state.sessions = await dbGetAll(state.db);
-    state.sessions.sort((a, b) => b.updatedAt - a.updatedAt);
-  } catch (err) {
-    console.error(err);
-    state.sessions = [];
-  }
-
-  loadPrefs();
-  updateGrammarUI();
-  if (!state.sessions.length) await createSession();
-  else if (!state.activeSessionId || !state.sessions.find(s => s.id === state.activeSessionId)) {
-    state.activeSessionId = state.sessions[0].id;
-  }
-
-  renderSessionList();
-  renderChat();
-  syncUIFromSession();
-  const bootSession = activeSession();
-  if (bootSession && !sessionModelId(bootSession)) {
-    await patchSessionFields(bootSession, { modelId: state.selectedModelId });
-  }
-  updateComposerState();
-
-  if (state.fileOrigin) $("file-origin-note").hidden = false;
-
-  await probeWebGPU();
-  await repairBrokenModelCacheLocal();
-  await refreshStorageUI();
-}
-
-$("theme-toggle").addEventListener("click", () => {
-  applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
-});
-$("load-model-btn").addEventListener("click", loadModel);
-$("load-model-btn-hero").addEventListener("click", loadModel);
-$("new-chat-btn").addEventListener("click", async () => {
-  await createSession();
-  renderChat();
-  syncUIFromSession();
-  resetLoadedModel();
-});
-$("model-picker").addEventListener("change", e => {
-  const input = e.target.closest('input[name="model-id"]');
-  if (input?.checked) selectModel(input.value);
-});
-$("sidebar-toggle").addEventListener("click", () => $("sidebar").classList.toggle("open"));
-$("chat-title").addEventListener("dblclick", startRenameActiveChat);
-$("chat-title-edit").addEventListener("click", startRenameActiveChat);
-$("session-search").addEventListener("input", () => {
-  state.sessionSearch = $("session-search").value;
-  renderSessionList();
-  savePrefs();
-});
-
-document.querySelectorAll("#grammar-modes .seg-btn").forEach(btn => {
-  btn.addEventListener("click", () => { state.grammarMode = btn.dataset.mode; savePrefs(); updateGrammarUI(); });
-});
-
-const debounce = createDebouncer();
-
-$("system-prompt").addEventListener("input", () => debounce("system-prompt", async () => {
-  const s = activeSession(); if (!s) return;
-  s.systemPrompt = $("system-prompt").value;
-  await persistSession(s);
-}));
-
-for (const id of ["grammar-json-schema", "grammar-custom"]) {
-  $(id).addEventListener("input", () => debounce(id, savePrefs));
-}
-
-$("max-tokens").addEventListener("change", () => {
-  state.maxNewTokens = clampMaxNewTokens($("max-tokens").value);
-  $("max-tokens").value = state.maxNewTokens;
-  savePrefs();
-});
-
-$("clear-model-cache-btn").addEventListener("click", () => clearModelCache());
-
-for (const id of ["conversations-block", "model-block", "system-block", "settings-block", "storage-block"]) {
-  $(id).addEventListener("toggle", savePrefs);
-}
-
-$("credits-btn").addEventListener("click", () => $("credits-dialog").showModal());
-$("credits-dialog-close").addEventListener("click", () => $("credits-dialog").close());
-$("credits-dialog").addEventListener("click", e => {
-  if (e.target === $("credits-dialog")) $("credits-dialog").close();
-});
-
-$("send-btn").addEventListener("click", sendMessage);
-$("stop-btn").addEventListener("click", () => { state.abort?.abort(); toast("Stopping…"); });
-$("user-input").addEventListener("input", () => autoResizeTextarea($("user-input")));
-$("user-input").addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-});
-
-init();
-</script>
+<dialog id="download-dialog" class="credits-dialog" aria-labelledby="download-dialog-title">
+  <div class="credits-dialog-inner">
+    <div class="credits-dialog-header">
+      <h2 id="download-dialog-title">Download JSON</h2>
+      <button type="button" class="credits-dialog-close" id="download-dialog-close" aria-label="Close"></button>
+    </div>
+    <p class="download-dialog-copy">Choose an export.</p>
+    <div class="download-dialog-actions" role="radiogroup" aria-label="Export format">
+      <label class="download-option">
+        <input type="radio" name="download-format" value="conversation" checked>
+        <span class="download-option-copy">
+          OpenAI conversation
+          <small>Messages, tool calls, and tool results</small>
+        </span>
+      </label>
+      <label class="download-option">
+        <input type="radio" name="download-format" value="trace">
+        <span class="download-option-copy">
+          Debug trace
+          <small>Conversation plus prompts, thinking, metrics, and model context</small>
+        </span>
+      </label>
+    </div>
+    <div class="download-dialog-footer">
+      <button type="button" class="btn" id="download-cancel-btn">Cancel</button>
+      <button type="button" class="btn primary" id="download-confirm-btn" autofocus>Download</button>
+    </div>
+  </div>
+</dialog>
+
+<script type="module" src="./app.js"></script>
 </body>
 </html>

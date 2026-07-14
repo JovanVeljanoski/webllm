@@ -53,6 +53,5 @@ model-caching.md
 reference-implementation.html
 local-analysis.js
 
-# E4B research pack — optional large downloads
-research-e4b/weights/*/model.safetensors
-research-e4b/golden/**/*.json
+# E4B research pack — local work in progress, not shipped
+research-e4b/

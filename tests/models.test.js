@@ -39,4 +39,16 @@ describe("model registry", () => {
     expect(modelSupportsThinking(null, "gemma4")).toBe(true);
     expect(modelSupportsThinking(null, "lfm2")).toBe(false);
   });
+
+  it("enables tools on every supported chat runtime", () => {
+    expect(MODELS.gemma4.supportsTools).toBe(true);
+    expect(MODELS.lfm2.supportsTools).toBe(true);
+    expect(MODELS.lfm2_350.supportsTools).toBe(true);
+  });
+
+  it("declares each runtime context window in tokens", () => {
+    expect(MODELS.gemma4.contextWindowTokens).toBe(131_072);
+    expect(MODELS.lfm2.contextWindowTokens).toBe(128_000);
+    expect(MODELS.lfm2_350.contextWindowTokens).toBe(128_000);
+  });
 });

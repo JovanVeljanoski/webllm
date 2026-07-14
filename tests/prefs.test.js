@@ -12,14 +12,41 @@ describe("prefs", () => {
       grammarEbnf: "",
       sessionSearch: "hello",
       sidebarOpen: { model: true },
+      webSearchPreferred: true,
     };
     const payload = buildPrefsPayload(input);
     const parsed = parsePrefsJson(JSON.stringify(payload));
     expect(parsed).toEqual(payload);
+    expect(parsed.webSearchPreferred).toBe(true);
   });
 
-  it("returns empty object for invalid JSON", () => {
-    expect(parsePrefsJson("{not json")).toEqual({});
-    expect(parsePrefsJson("")).toEqual({});
+  it("defaults webSearchPreferred to false", () => {
+    const payload = buildPrefsPayload({
+      activeSessionId: null,
+      selectedModelId: "gemma4",
+      grammarMode: "off",
+      maxNewTokens: 512,
+    });
+    expect(payload.webSearchPreferred).toBe(false);
+  });
+
+  it("returns safe defaults for invalid or empty JSON", () => {
+    expect(parsePrefsJson("{not json")).toEqual({ webSearchPreferred: false });
+    expect(parsePrefsJson("")).toEqual({ webSearchPreferred: false });
+  });
+
+  it("treats missing webSearchPreferred as false", () => {
+    const parsed = parsePrefsJson(JSON.stringify({ selectedModelId: "gemma4" }));
+    expect(parsed.webSearchPreferred).toBe(false);
+  });
+
+  it("drops malformed preference fields", () => {
+    const parsed = parsePrefsJson(JSON.stringify({
+      maxNewTokens: "many",
+      sidebarOpen: [],
+      grammarMode: "unknown",
+      sessionSearch: "ok",
+    }));
+    expect(parsed).toEqual({ webSearchPreferred: false, sessionSearch: "ok" });
   });
 });
