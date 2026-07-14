@@ -1,138 +1,277 @@
 # WebLLM
 
-A private AI chat that runs **in your browser**. Model inference and chat history stay local; if you enable Web Search, the app sends normalized search queries to the third-party Exa MCP service and displays the returned evidence. WebLLM is a demo and starting point for local WebGPU inference. Choose **Gemma 4 E2B** (default, ~2.5 GB) or **LFM2.5** 230M / 350M (~150–220 MB, faster).
+Private, on-device AI with an agent loop that runs in the browser.
 
-## Try it live
+WebLLM is a proof of concept: can a useful model load from a static website, reason,
+call a tool, inspect the result, and continue its work without an account, API key,
+backend, or local installation?
 
-**[https://jovanveljanoski.github.io/webllm/](https://jovanveljanoski.github.io/webllm/)**
+Today, the answer is yes—with the limits of today's small on-device models. Models
+will improve, and the harness can improve with them. This project is step zero: a
+small, inspectable implementation of agentic work on private local inference.
 
-1. Open the link in **Chrome, Edge, or Safari 18+** (Firefox is not supported for inference).
-2. Open the sidebar **Model** panel and pick a model (Gemma 4 E2B, LFM2.5 230M, or LFM2.5 350M).
-3. Click **Load model** — the first visit downloads weights from Hugging Face (one-time; ~2.5 GB for Gemma, ~150–220 MB for LFM2.5).
-4. Wait for **Model ready**, then chat. Refresh later and the model loads from your browser cache in seconds.
+**[Try the live demo](https://jovanveljanoski.github.io/webllm/)**
 
-Without Web Search enabled, prompts, inference, and chat history remain on your device. Model weights are downloaded from Hugging Face and cached locally.
+## What works today
 
-## Credit
+- Local inference through WebGPU
+- Gemma 4 E2B with thinking and tool use
+- Smaller LFM2.5 230M and 350M chat models
+- A bounded model → tool → model agent loop
+- Optional web search through Exa MCP, with no API key
+- Local conversation history and model caching
+- Editable system prompts and prompt-guided JSON or EBNF output
+- OpenAI-compatible conversation exports and detailed debug traces
 
-This demo would not be possible without **Transformers.js** and the work of **Joshua Lochner** ([@xenovacom](https://x.com/xenovacom) · [GitHub](https://github.com/Xenova)), who pioneered running state-of-the-art ML models in the browser with WebGPU. WebLLM is meant to showcase that stack, inspire local use cases, and promote his work — not to replace it.
+The production app is static HTML and JavaScript. There is no application server
+and no build step.
 
-The runtime bundles are built on the Hugging Face / Transformers.js ecosystem: `gemma-4-e2b.js` (Gemma 4) and `lfm2_5.js` ([webml-community/lfm2-webgpu-kernels](https://huggingface.co/spaces/webml-community/lfm2-webgpu-kernels)). Follow Joshua for updates on browser ML.
+## Try it
 
-## What it does
+Use Chrome 113+, Edge 113+, or Safari 18+. Firefox is not supported by the current
+WebGPU runtimes.
 
-- **Model switcher** in the sidebar — Gemma 4 E2B (default, thinking traces) or LFM2.5 230M / 350M (smaller, faster)
-- Loads local LLMs once, then caches weights in the browser (per model)
-- Runs inference via **WebGPU** (Chrome, Edge, Safari 18+)
-- Stores chat history in **IndexedDB** on your machine
-- Optional iterative **Web Search** through Exa MCP; search queries and returned snippets leave the browser
-- Exports conversations as **OpenAI Chat Completions JSON**, including `web_search` calls and tool results; the download dialog also offers a full local agent trace
-- Supports system prompts, optional grammar guidance, thinking traces, and dark mode
+1. Open the [live demo](https://jovanveljanoski.github.io/webllm/).
+2. Choose a model in the sidebar.
+3. Select **Load model**.
+4. Wait for the first download and warm-up, then send a message.
+5. With Gemma selected, enable **Web search** to use the agent loop.
 
-## Quick start
+The first load downloads model weights from Hugging Face. Gemma is about 2.5 GB;
+the LFM models are about 150 MB and 220 MB. The browser caches them for later
+visits when storage is available.
 
-**Requirements:** A browser with WebGPU (Chrome 113+, Edge 113+, Safari 18+). Firefox is not supported for the current runtime.
+No account or API key is required. “Zero setup” still means that the browser must
+support WebGPU, have enough storage, and download a model once.
 
-### Local development
+## How the agent loop works
 
-Caching and IndexedDB require a real origin — **do not** open `index.html` via `file://`.
+The loop is deliberately conventional. The model does not directly call JavaScript
+or access the network. It emits structured text asking for a declared tool; the
+harness parses that request, runs the matching function, records its output as a
+tool message, and asks the model to continue.
 
-```bash
-python3 -m http.server 8080
+```text
+user message
+    ↓
+assemble system prompt + transcript + tool definitions
+    ↓
+local model generation
+    ├─ final answer ──────────────────────────────→ save and render
+    └─ tool call
+          ↓
+       validate and execute registered tool
+          ↓
+       append assistant tool call + tool result
+          ↓
+       local model generation resumes
 ```
 
-Then open [http://localhost:8080](http://localhost:8080).
+For one agent turn:
 
-### GitHub Pages
+1. `app.js` adds the user's message to the current session.
+2. `lib/messages.js` builds the effective model transcript.
+3. `lib/agent-loop.js` asks the model adapter for a generation.
+4. `lib/gemma-adapter.js` separates thinking, visible content, and complete tool
+   calls from the Gemma output.
+5. If there is no tool call, the answer is complete.
+6. If there is a tool call, the loop resolves it against the tool registry and
+   executes it. Unknown tools and execution failures become tool-result messages,
+   so the model can see what happened.
+7. The assistant tool call and matching tool result are appended to the transcript,
+   then generation runs again.
+8. The resulting canonical messages are saved to IndexedDB and rendered by the UI.
 
-The live demo is hosted on GitHub Pages — see [Try it live](#try-it-live) above. Pushes to `master` redeploy automatically.
+The UI currently registers one tool, `web_search`. The loop itself is
+model- and tool-agnostic: tools provide a name, schema, execution function, prompt
+policy, trust level, and whether concurrent execution is safe.
 
-## Project layout
+### What is inserted where
 
-| Path | Purpose |
-|------|---------|
-| `index.html` | Document shell and styles |
-| `app.js` | UI/DOM wiring, model lifecycle, streaming, and generation |
-| `lib/` | Testable core logic (sessions, messages, cache, prefs, formatting, …) |
-| `gemma-4-e2b.js` | WebGPU runtime for Gemma 4 E2B (`Gemma4Mobile.load`, generate, safetensors cache) |
-| `lfm2_5.js` | WebGPU runtime for LFM2.5 GGUF models (`Lfm2Mobile.load`, shared by 230M & 350M) |
-| `tests/` | Vitest unit tests (no real WebGPU inference) |
-| `docs/architecture.md` | Current architecture and privacy/data-flow record |
-| `scripts/` | Runtime patch and maintenance scripts |
-| `research-e4b/` | Separate, not-yet-integrated Gemma 4 E4B research pack |
+The stored session contains:
 
-Production deploy is still static assets — no bundler. For local development and CI, run `npm install` once to get the test runner.
+- the editable system prompt;
+- chronological `user`, `assistant`, and `tool` messages;
+- thinking and generation metrics on assistant messages;
+- tool call IDs and execution metadata.
 
-## Testing
+The stored system prompt defaults to:
 
-```bash
-npm install
-npm test          # single run
-npm run test:watch
-npm run lint      # ESLint on the repository
+```text
+You are a helpful assistant.
 ```
 
-Tests cover pure logic in `lib/` (message building, session filtering, cache introspection, prefs, formatting, browser detection, etc.) using Vitest and `fake-indexeddb`. Real model load and WebGPU inference are intentionally excluded.
+Immediately before a model call, the app creates an effective system message. It
+does not rewrite the stored prompt. The layers are added in this order:
 
-CI runs `npm run lint` and `npm test` on every pull request and on pushes to `master` (see `.github/workflows/ci.yml`).
+1. The session's system prompt.
+2. The fixed January 2025 knowledge cutoff and the browser's current local date.
+3. In agent mode, the tool-call protocol.
+4. Policies contributed by active tools, such as when and how to search.
+5. A guard telling the model to treat external tool output as evidence, never as
+   instructions.
+6. In ordinary chat mode, optional JSON or EBNF guidance.
 
-Serve the app over HTTP when manually smoke-testing modules:
+Tool schemas are also passed separately to the model runtime. Web search and
+grammar guidance are mutually exclusive in the current UI.
+
+Before generation, the loaded model's tokenizer measures the complete prompt. The
+input budget reserves the requested output length plus 256 safety tokens. If the
+conversation is too large, the harness removes the oldest complete user turns. It
+never splits an assistant tool call from its tool result and never shortens the
+current turn. If the current turn alone does not fit, generation fails visibly.
+
+### Boundaries and stopping rules
+
+Agent execution is bounded so a small model cannot search forever:
+
+- At most three tool rounds
+- At most four calls from one generation
+- At most eight calls in one user turn
+- One final generation with tools disabled after the tool-round limit
+
+Calls execute sequentially unless every requested tool explicitly declares itself
+parallel-safe. `web_search` is parallel-safe. Stopping a response propagates an
+`AbortSignal` through model generation and search, and partial state is preserved.
+
+Tool calls are only executed after the parser finds a complete, balanced call.
+Calls inside an open thinking channel and truncated calls are ignored. This avoids
+executing half-generated arguments.
+
+### Web search, end to end
+
+When Web Search is enabled, the effective prompt tells Gemma when to search and
+how to write focused queries. A call can contain up to three queries. The search
+tool:
+
+1. normalizes and deduplicates queries for that user turn;
+2. sends them to the public Exa MCP endpoint;
+3. requests up to three results per query;
+4. sanitizes and formats the returned evidence;
+5. gives the same evidence to the UI and the local model.
+
+Gemma then generates again with the search result in its transcript. It may answer,
+make another search within the limits, or report that the evidence is insufficient.
+The host does not classify answer quality, retry weak answers, or invent a result.
+
+## Privacy and network access
+
+Prompts, generations, and chat history stay in the browser when Web Search is off.
+Inference always runs locally.
+
+There are two intentional network paths:
+
+- Model files are downloaded from Hugging Face and cached locally.
+- When Web Search is enabled, normalized queries are sent to the third-party Exa
+  MCP service and results return to the browser.
+
+Search queries therefore are not private to the device. Search results are treated
+as untrusted external data before being shown to the model.
+
+Sessions live in the `webllm-sessions` IndexedDB database. Preferences and theme
+live in `localStorage`. Model weights use IndexedDB and/or Cache Storage depending
+on the runtime. Storage failures degrade to in-memory chat where possible.
+
+## Models
+
+- **Gemma 4 E2B** — default, about 2.5 GB, thinking and `web_search`
+- **LFM2.5 230M** — about 150 MB, fastest, chat only
+- **LFM2.5 350M** — about 220 MB, a larger LFM option, chat only
+
+Gemma 4 E4B is research only and is not loadable by the app. The material in
+`research-e4b/` documents that future target.
+
+## Design decisions
+
+**Browser first.** A static site is the shortest path from a link to private local
+inference. It also makes the runtime boundary easy to inspect: the browser is the
+application.
+
+**A transcript, not hidden state.** Tool requests and results are ordinary
+chronological messages. This makes sessions portable, debuggable, and exportable.
+
+**A small generic loop.** The orchestration code knows how to generate, dispatch
+tools, append results, and stop. Search-specific behavior stays in the search tool;
+Gemma-specific syntax stays in the model adapter.
+
+**Bounded autonomy.** Hard round and call limits are more predictable than asking a
+small model to decide when it has done enough.
+
+**Visible failure.** Incomplete calls are not executed, tool errors go back into the
+transcript, and oversized current turns fail rather than silently losing content.
+
+**No host-side answer judge.** The harness currently accepts the model's final
+answer. There is no evaluator, retry loop, memory summarizer, planner, or background
+worker. Those are possible future improvements, not behavior hidden in the demo.
+
+## Current limitations
+
+- Tool use is available only with Gemma 4 E2B.
+- Web search is the only tool wired into the UI.
+- Agent quality is constrained by a small local model and its tool-call reliability.
+- Grammar mode is prompt guidance, not token-level constrained decoding.
+- The model must remain loaded in the active page; there is no background runtime.
+- Unit tests do not run real WebGPU inference.
+
+This is a proof of concept, not a security boundary for executing arbitrary tools.
+Any new tool should validate its inputs, bound its output, define its trust level,
+and expose only the minimum capability needed.
+
+## Local development
+
+Clone the repository and serve it over HTTP:
 
 ```bash
-python3 -m http.server 8080
+make run
 ```
 
-## Implementation notes for developers
+Then open [http://localhost:8080](http://localhost:8080). Do not open `index.html`
+through `file://`; normal model caching and persistence require an HTTP(S) origin.
 
-### Architecture
+There is no production build. Development dependencies are used only for linting
+and tests:
 
-- **Static-only:** GitHub Pages (or any static host) serves HTML/JS. The browser fetches model weights directly from Hugging Face's CDN — no application backend.
-- **Two-tier cache** (Gemma, safetensors via runtime + `app.js`):
-  - **Cache Storage** — tokenizer, config, small JSON assets
-  - **IndexedDB** — safetensors weight chunks (~256 KB blobs, HTTP Range requests)
-- **GGUF cache** (LFM2.5) — Cache Storage per model (`webllm-lfm2-v1` for 230M, `webllm-lfm2-350m-v1` for 350M; each with `-headers`)
-- **Chat persistence** — IndexedDB database `webllm-sessions`; `localStorage` keys `webllm:prefs` and `webllm:theme`. Clearing model cache does not delete conversations.
-- **Search exception** — when enabled, `web_search` calls Exa MCP. Search evidence is bounded and sanitized before it is sent back to the local model or rendered.
+```bash
+make install
+make lint
+make test
+```
 
-### Storage names (v0.0.5+)
+`make ci` runs the same install, lint, and test sequence used by GitHub Actions.
+Node.js 22 is used in CI.
 
-| Resource | Key / name |
-|----------|------------|
-| Chat sessions | IndexedDB `webllm-sessions` |
-| User prefs | `localStorage` `webllm:prefs` |
-| Theme | `localStorage` `webllm:theme` |
-| Gemma weights cache | IndexedDB + Cache Storage `webllm-gemma4-v1` |
-| LFM2.5 230M cache | Cache Storage `webllm-lfm2-v1` (+ `-headers`) |
-| LFM2.5 350M cache | Cache Storage `webllm-lfm2-350m-v1` (+ `-headers`) |
+## Project structure
 
-Older `gemma4-chat*` names are not migrated (pre-release; users re-download weights once).
+- `index.html` — document shell and styles
+- `app.js` — UI state, model lifecycle, streaming, persistence, and orchestration
+- `lib/agent-loop.js` — bounded model/tool transcript loop
+- `lib/messages.js` — effective prompt construction and exports
+- `lib/gemma-adapter.js` — canonical-message and Gemma protocol boundary
+- `lib/tools.js` — tool declarations and prompt policies
+- `lib/web-search-tool.js` — query handling and search execution
+- `lib/` — testable browser-independent application logic
+- `gemma-4-e2b.js` and `lfm2_5.js` — vendored WebGPU runtimes
+- `tests/` — Vitest unit tests
+- `docs/architecture.md` — detailed source of truth for current behavior
+- `research-e4b/` — separate Gemma 4 E4B research pack
 
-### Key integration points
+## Contributing
 
-- `lib/models.js` — `MODELS` registry; add entries with `runtime`, `hubId`, `cacheName`, `cacheType`, `supportsThinking`
-- `Gemma4Mobile.load(null, { revision, cacheName, onProgress })` — Gemma weights (`gemma-4-e2b.js` injected on first Gemma load)
-- `Lfm2Mobile.load(hubId, { revision, cacheName, onProgress })` — LFM2.5 GGUF (dynamic `import("./lfm2_5.js")`)
-- `state.fileOrigin` — disables cache on `file://`; production must use `https://`
-- `lib/messages.js` — `buildMessages(session, grammarConfig)` builds the message list sent to the model
-- `exportSessionOpenAI(session)` — exports the default portable OpenAI Chat Completions JSON
-- `exportSessionTrace(session)` — exports model context, prompt layers, canonical messages, thinking, metrics, and tool metadata
-- `lib/cache.js` — `getModelCacheSize()`, `checkModelCached()`; prefer over `navigator.storage.estimate()` (underreports on Safari)
-- `lib/agent-loop.js` — generic bounded message/tool loop with lifecycle events
-- `lib/web-search-tool.js` — query normalization, Exa execution, deduplication, and search-result metadata
-- `lib/gemma-adapter.js` — Gemma thinking/tool syntax normalization at the model boundary
-- `scripts/patch-gemma-tool-support.mjs` — regenerates the vendored Gemma runtime patch; run it after changing the inline stop scanner
+Keep changes small and the production surface simple: vanilla JavaScript, static
+assets, and testable logic in `lib/`. Run `make lint` and `make test` for every
+change. Update this README and `docs/architecture.md` when the agent loop, prompt
+layers, persistence, model registry, or privacy boundary changes.
 
-### WebGPU probe
+Real inference is not covered by the unit suite, so runtime changes should also be
+smoke-tested in a supported browser over HTTPS.
 
-On load, the app checks `navigator.gpu`, requests an adapter, and shows browser-specific guidance (e.g. Safari OK, Firefox blocked). Model load is disabled until WebGPU is available.
+## Credits
 
-### Contributing
-
-- Keep the production surface minimal: `index.html` + `app.js` + `lib/` + runtime JS files
-- Match existing patterns (vanilla JS, CSS variables, no framework)
-- Run `npm test` before cache- or message-related changes; smoke-test on **HTTPS** before shipping
-- Bump each model's `revision` and `cacheName` in `MODELS` together when changing model weights (Gemma: `GEMMA_REVISION` + `gemma4.cacheName`)
-- Keep `docs/architecture.md` current when the data flow, model registry, persistence shape, or tool protocol changes
+WebLLM builds on the Hugging Face and Transformers.js ecosystem, including the
+browser ML work of [Joshua Lochner](https://github.com/Xenova). The LFM runtime is
+based on
+[webml-community/lfm2-webgpu-kernels](https://huggingface.co/spaces/webml-community/lfm2-webgpu-kernels).
+The bounded inner-turn design is informed by [pi.dev](https://pi.dev/).
 
 ## License
 
