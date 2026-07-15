@@ -2,6 +2,10 @@
 
 Private, on-device AI with an agent loop that runs in the browser.
 
+**[Try the live demo](https://jovanveljanoski.github.io/webllm/)**
+
+![WebLLM running locally in the browser — model load, chat, and web search](docs/webllm-x.gif)
+
 WebLLM is a proof of concept: can a useful model load from a static website, reason,
 call a tool, inspect the result, and continue its work without an account, API key,
 backend, or local installation?
@@ -9,8 +13,6 @@ backend, or local installation?
 Today, the answer is yes—with the limits of today's small on-device models. Models
 will improve, and the harness can improve with them. This project is step zero: a
 small, inspectable implementation of agentic work on private local inference.
-
-**[Try the live demo](https://jovanveljanoski.github.io/webllm/)**
 
 ## What works today
 
