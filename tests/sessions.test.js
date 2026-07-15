@@ -30,6 +30,18 @@ describe("session records", () => {
     expect(session.messages).toEqual([]);
   });
 
+  it("inherits explicit model and web search settings", () => {
+    const session = createSessionRecord({
+      id: "s2",
+      title: "Test",
+      modelId: "lfm2",
+      webSearchPreferred: true,
+      models: MODELS,
+    });
+    expect(session.modelId).toBe("lfm2");
+    expect(session.webSearchPreferred).toBe(true);
+  });
+
   it("normalizes titles and first message titles", () => {
     expect(normalizeSessionTitle("  ")).toBe("Untitled");
     expect(firstMessageTitle("a".repeat(60))).toBe(`${"a".repeat(50)}…`);
@@ -76,6 +88,16 @@ describe("session list helpers", () => {
     });
     expect(normalized.messages[1]).not.toHaveProperty("agentTranscript");
     expect(Number.isFinite(normalized.createdAt)).toBe(true);
+    expect(normalized).not.toHaveProperty("webSearchPreferred");
+  });
+
+  it("preserves per-session web search preference", () => {
+    const normalized = normalizeSessionRecord({
+      id: "tools",
+      webSearchPreferred: true,
+      messages: [],
+    }, MODELS);
+    expect(normalized.webSearchPreferred).toBe(true);
   });
 
   it("migrates embedded agent state to one chronological transcript", () => {

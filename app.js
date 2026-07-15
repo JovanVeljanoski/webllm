@@ -15,6 +15,7 @@ import {
   resolveModelIdForSession,
   modelLabel,
   modelSupportsThinking as modelHasThinking,
+  isValidModelId,
 } from "./lib/models.js";
 import {
   esc,
@@ -289,15 +290,27 @@ async function persistSession(session) {
   }
 }
 
+function inheritedSessionSettings() {
+  const modelId = isValidModelId(state.selectedModelId)
+    ? state.selectedModelId
+    : resolveModelIdForSession(activeSession(), DEFAULT_MODEL_ID);
+  return {
+    modelId,
+    webSearchPreferred: state.webSearchPreferred,
+  };
+}
+
 async function createSession(title = "New chat") {
   if (state.busy || state.loading) {
     toast("Wait until the current operation finishes.");
     return null;
   }
+  const inherited = inheritedSessionSettings();
   const session = createSessionRecord({
     id: uid(),
     title,
-    selectedModelId: state.selectedModelId,
+    modelId: inherited.modelId,
+    webSearchPreferred: inherited.webSearchPreferred,
     models: MODELS,
   });
   state.activeSessionId = session.id;
@@ -657,6 +670,13 @@ async function applyModelSelection(modelId, { silent = false, persistToSession =
   if (!MODELS[modelId]) modelId = DEFAULT_MODEL_ID;
   const needsUnload = state.model && state.loadedModelId && state.loadedModelId !== modelId;
   if (modelId === state.selectedModelId && !needsUnload) {
+    if (persistToSession) {
+      const session = activeSession();
+      if (session && session.modelId !== modelId) {
+        await patchSessionFields(session, { modelId });
+        renderSessionList();
+      }
+    }
     renderModelPicker();
     return;
   }
@@ -822,14 +842,11 @@ async function loadModel() {
     };
     if (state.fileOrigin) loadOpts.cache = false;
     state.model = await getRuntimeAdapter(def.runtime).loadModel(def, loadOpts);
-    setModelStatus("loading", "Warming up…");
-    state.progress.label = "Warming up…";
     setProgressTarget(0.99);
     await state.model.warmup();
     setProgressImmediate(1, "Model ready");
     state.modelLoadSecs = ((performance.now() - started) / 1000).toFixed(1);
     state.loadedModelId = def.id;
-    restoreIdleStatus();
     setTimeout(() => $("load-bar-wrap").classList.remove("show"), 500);
     requestPersistentStorage();
     state.modelCached = await checkModelCached(def);
@@ -859,6 +876,7 @@ async function loadModel() {
     $("load-bar-wrap").classList.remove("show");
   } finally {
     state.loading = false;
+    if (state.model) restoreIdleStatus();
     updateComposerState();
     updateWebSearchUI();
     renderModelPicker();
@@ -1750,6 +1768,9 @@ function syncUIFromSession() {
   if (!session) return;
   $("system-prompt").value = session.systemPrompt || DEFAULT_SYSTEM_PROMPT;
   syncModelFromSession(session);
+  if (typeof session.webSearchPreferred === "boolean") {
+    state.webSearchPreferred = session.webSearchPreferred;
+  }
   updateChatTitle();
   updateGrammarUI();
 }
@@ -2545,10 +2566,12 @@ $("load-model-btn").addEventListener("click", loadModel);
 $("load-model-btn-hero").addEventListener("click", loadModel);
 $("new-chat-btn").addEventListener("click", async () => {
   focusComposerInput($("user-input"));
+  const inherited = inheritedSessionSettings();
   const session = await createSession();
   if (!session) return;
   renderChat();
   syncUIFromSession();
+  await applyModelSelection(inherited.modelId, { silent: true, persistToSession: false });
   resetLoadedModel();
   focusComposerInput($("user-input"));
 });
@@ -2579,13 +2602,19 @@ document.querySelectorAll("#grammar-modes .seg-btn").forEach(btn => {
   });
 });
 
-$("web-search-toggle")?.addEventListener("change", () => {
+$("web-search-toggle")?.addEventListener("change", async () => {
   state.webSearchPreferred = $("web-search-toggle").checked;
   if (state.webSearchPreferred && state.grammarMode !== "off") {
     state.grammarMode = "off";
     toast("Grammar mode disabled while web search is on.");
   }
-  savePrefs();
+  const session = activeSession();
+  if (session) {
+    session.webSearchPreferred = state.webSearchPreferred;
+    await persistSession(session);
+  } else {
+    savePrefs();
+  }
   updateGrammarUI();
 });
 
