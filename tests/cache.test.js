@@ -5,6 +5,7 @@ import {
   deleteModelCacheDatabases,
   getModelCacheSize,
   ggufCacheHasModel,
+  repairPoisonedGgufCache,
   readModelCacheMeta,
   repairBrokenModelCache,
   responseByteSize,
@@ -80,9 +81,9 @@ describe("sumCacheStorageBytes", () => {
 });
 
 describe("gguf cache detection", () => {
-  it("detects hub id in cached URLs", async () => {
+  it("detects hub id in cached header URLs", async () => {
     const caches = makeCaches();
-    const cache = await caches.open(MODELS.lfm2.cacheName);
+    const cache = await caches.open(`${MODELS.lfm2.cacheName}-headers`);
     await cache.put(
       new Request(`https://cdn.example.com/${MODELS.lfm2.hubId}/model.gguf`),
       makeResponse(10),
@@ -90,6 +91,62 @@ describe("gguf cache detection", () => {
     const env = createCacheEnv({ fileOrigin: false, caches, indexedDB });
     expect(await ggufCacheHasModel(MODELS.lfm2, env)).toBe(true);
     expect(await checkModelCached(MODELS.lfm2, env)).toBe(true);
+  });
+
+  it("detects GGUF weights in IndexedDB chunk cache", async () => {
+    const def = MODELS.bonsai27b;
+    const env = createCacheEnv({ fileOrigin: false, caches: makeCaches(), indexedDB });
+    const cacheKey = `https://huggingface.co/${def.hubId}/resolve/${def.revision}/${def.ggufFile}`;
+
+    await new Promise((resolve, reject) => {
+      const req = indexedDB.open(def.cacheName, 2);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        db.createObjectStore("chunks");
+        db.createObjectStore("meta");
+      };
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction(["meta", "chunks"], "readwrite");
+        tx.objectStore("meta").put({ size: 3_900_000_000, acceptsRanges: true }, cacheKey);
+        // Deliberately make the Blob smaller than its cached byte range. Size
+        // accounting must read the key range without materializing the value.
+        tx.objectStore("chunks").put(
+          new Blob([new Uint8Array(1)]),
+          [cacheKey, 0, 120],
+        );
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => reject(tx.error);
+      };
+      req.onerror = () => reject(req.error);
+    });
+
+    expect(await ggufCacheHasModel(def, env)).toBe(true);
+    expect(await checkModelCached(def, env)).toBe(true);
+    const size = await getModelCacheSize(def, env);
+    expect(size.stored).toBe(120);
+    expect(size.declared).toBe(def.declaredBytes);
+  });
+
+  it("repairs poisoned GGUF IndexedDB databases without object stores", async () => {
+    const def = MODELS.bonsai27b;
+    const env = createCacheEnv({ fileOrigin: false, caches: makeCaches(), indexedDB });
+
+    await deleteModelCacheDatabases(def, env);
+
+    await new Promise((resolve, reject) => {
+      const req = indexedDB.open(def.cacheName, 2);
+      req.onupgradeneeded = () => {
+        // Intentionally create no object stores — mirrors the cache check bug.
+      };
+      req.onsuccess = () => { req.result.close(); resolve(); };
+      req.onerror = () => reject(req.error);
+    });
+
+    expect(await checkModelCached(def, env)).toBe(false);
+    expect(await repairPoisonedGgufCache(def, env)).toBe(true);
+    const dbs = await indexedDB.databases?.();
+    expect(dbs?.some(d => d.name === def.cacheName)).toBe(false);
   });
 });
 
@@ -162,14 +219,25 @@ describe("safetensors cache metadata", () => {
 });
 
 describe("deleteModelCacheDatabases", () => {
-  it("deletes gguf cache buckets", async () => {
+  it("deletes gguf cache buckets and IndexedDB", async () => {
     const store = new Map();
     const caches = makeCaches(store);
     const env = createCacheEnv({ fileOrigin: false, caches, indexedDB });
     await caches.open(MODELS.lfm2.cacheName);
     await caches.open(`${MODELS.lfm2.cacheName}-headers`);
+    await new Promise((resolve, reject) => {
+      const req = indexedDB.open(MODELS.lfm2.cacheName, 2);
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore("chunks");
+        req.result.createObjectStore("meta");
+      };
+      req.onsuccess = () => { req.result.close(); resolve(); };
+      req.onerror = () => reject(req.error);
+    });
     await deleteModelCacheDatabases(MODELS.lfm2, env);
     expect(store.has(MODELS.lfm2.cacheName)).toBe(false);
     expect(store.has(`${MODELS.lfm2.cacheName}-headers`)).toBe(false);
+    const dbs = await indexedDB.databases?.();
+    expect(dbs?.some(d => d.name === MODELS.lfm2.cacheName)).toBe(false);
   });
 });

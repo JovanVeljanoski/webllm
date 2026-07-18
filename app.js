@@ -30,11 +30,11 @@ import {
   buildAgentMessages,
   exportSessionOpenAI,
   exportSessionTrace,
-  splitThinking,
+  splitModelThinking,
 } from "./lib/messages.js";
 import { runAgentTurn } from "./lib/agent-loop.js";
 import { getRuntimeAdapter } from "./lib/runtime-registry.js";
-import { fitMessagesToContext } from "./lib/context-window.js";
+import { fitMessagesToContext, effectiveMaxNewTokens } from "./lib/context-window.js";
 import { createWebSearchTool } from "./lib/web-search-tool.js";
 import { agentMessagesToSteps } from "./lib/agent-ui.js";
 import { looksLikeToolCallSyntax, stripToolCallSyntax, hasUnclosedThoughtChannel } from "./lib/tool-parser.js";
@@ -78,6 +78,7 @@ import {
   getAllModelsCacheStats,
   checkModelCached as isModelCached,
   repairBrokenModelCache,
+  repairPoisonedGgufCache,
   deleteModelCacheDatabases,
   deleteAllModelCaches,
 } from "./lib/cache.js";
@@ -101,6 +102,19 @@ function loadedModelDef() {
 
 function modelSupportsThinking() {
   return modelHasThinking(state.loadedModelId, state.selectedModelId);
+}
+
+function shouldShowThinkingPanel(displayThinking, { streamPhase = "generating" } = {}) {
+  if (!modelSupportsThinking()) return false;
+  if (displayThinking) return true;
+  return streamPhase === "searching"
+    || streamPhase === "prefill"
+    || streamPhase === "generating";
+}
+
+function splitRawThinking(raw) {
+  const def = loadedModelDef() || activeModelDef();
+  return splitModelThinking(raw, def?.runtime);
 }
 
 function webSearchEffective() {
@@ -206,6 +220,7 @@ const state = {
   webgpuOk: false,
   webgpuBrowser: "other",
   webgpuChecking: true,
+  storageChecking: true,
   // file:// is an opaque origin — IndexedDB unavailable — cache disabled intentionally.
   // Production is static GitHub Pages (https://) — no server. Local dev: python3 -m http.server 8080
   fileOrigin: typeof location !== "undefined" && location.protocol === "file:",
@@ -385,6 +400,10 @@ function loadPrefs() {
     if (p.grammarMode) state.grammarMode = p.grammarMode;
     if (MODELS[p.selectedModelId]) state.selectedModelId = p.selectedModelId;
     if (typeof p.maxNewTokens === "number") state.maxNewTokens = clampMaxNewTokens(p.maxNewTokens);
+    state.maxNewTokens = effectiveMaxNewTokens(
+      state.maxNewTokens,
+      activeModelDef(),
+    );
     if (p.grammarJsonSchema) $("grammar-json-schema").value = p.grammarJsonSchema;
     if (p.grammarEbnf) $("grammar-custom").value = p.grammarEbnf;
     if (p.sessionSearch) {
@@ -692,6 +711,15 @@ async function applyModelSelection(modelId, { silent = false, persistToSession =
     if (!silent) toast(`Switched to ${MODELS[modelId].name}. Load the model when ready.`);
   }
   state.selectedModelId = modelId;
+  const modelDef = MODELS[modelId];
+  const cappedMaxNewTokens = effectiveMaxNewTokens(
+    state.maxNewTokens,
+    modelDef,
+  );
+  if (cappedMaxNewTokens !== state.maxNewTokens) {
+    state.maxNewTokens = cappedMaxNewTokens;
+    if ($("max-tokens")) $("max-tokens").value = cappedMaxNewTokens;
+  }
   if (persistToSession) {
     const session = activeSession();
     if (session && session.modelId !== modelId) {
@@ -738,6 +766,19 @@ async function refreshStorageUI() {
         statusText.textContent = formatAllModelsCacheStatus(stats);
       }
     }
+  }
+  updateStorageButtons();
+  updateEmptyCacheHint();
+  updateComposerState();
+}
+
+function updateStorageUIAfterLoad(def) {
+  const statusText = $("storage-status-text");
+  if (statusText && !state.fileOrigin) {
+    statusText.hidden = false;
+    statusText.textContent = state.modelCached
+      ? `Cached for offline use · ${def.name}`
+      : "Offline cache not detected";
   }
   updateStorageButtons();
   updateEmptyCacheHint();
@@ -800,7 +841,13 @@ function updateComposerState() {
   $("system-prompt").disabled = sessionLocked;
   $("session-search").disabled = sessionLocked;
 
-  const loadDisabled = state.loading || state.busy || !state.webgpuOk || state.webgpuChecking || !!state.model;
+  const loadDisabled =
+    state.loading
+    || state.busy
+    || !state.webgpuOk
+    || state.webgpuChecking
+    || state.storageChecking
+    || !!state.model;
   for (const btn of [$("load-model-btn"), $("load-model-btn-hero")]) {
     if (!btn) continue;
     btn.disabled = loadDisabled;
@@ -825,7 +872,7 @@ function updateComposerState() {
 }
 
 async function loadModel() {
-  if (state.model || state.loading || !state.webgpuOk) return;
+  if (state.model || state.loading || state.storageChecking || !state.webgpuOk) return;
   const def = activeModelDef();
   state.loading = true;
   updateComposerState();
@@ -841,19 +888,36 @@ async function loadModel() {
       revision: def.revision,
     };
     if (state.fileOrigin) loadOpts.cache = false;
+    if (def.cacheType === "gguf") {
+      await repairPoisonedGgufCache(def, cacheEnv());
+    }
     state.model = await getRuntimeAdapter(def.runtime).loadModel(def, loadOpts);
-    setProgressTarget(0.99);
-    await state.model.warmup();
+    // Bonsai27B.load() already runs kernel warmup; Gemma/LFM need a follow-up call.
+    if (def.runtime !== "bonsai") {
+      setProgressTarget(0.99);
+      await state.model.warmup();
+    }
     setProgressImmediate(1, "Model ready");
     state.modelLoadSecs = ((performance.now() - started) / 1000).toFixed(1);
     state.loadedModelId = def.id;
+    const loadedMaxNewTokens = effectiveMaxNewTokens(state.maxNewTokens, def);
+    if (loadedMaxNewTokens !== state.maxNewTokens) {
+      state.maxNewTokens = loadedMaxNewTokens;
+      if ($("max-tokens")) $("max-tokens").value = loadedMaxNewTokens;
+      savePrefs();
+    }
     setTimeout(() => $("load-bar-wrap").classList.remove("show"), 500);
     requestPersistentStorage();
-    state.modelCached = await checkModelCached(def);
-    if (!state.modelCached && !state.fileOrigin) {
-      toast("Model loaded, but couldn't be cached (browser may be low on storage). It will re-download next time.");
+    try {
+      state.modelCached = await checkModelCached(def);
+      if (!state.modelCached && !state.fileOrigin) {
+        toast("Model loaded, but offline cache was not detected. It may re-download on the next visit.");
+      }
+      updateStorageUIAfterLoad(def);
+    } catch (cacheErr) {
+      console.warn("Could not verify model cache after load.", cacheErr);
+      state.modelCached = false;
     }
-    await refreshStorageUI();
     renderModelPicker();
   } catch (err) {
     console.error(err);
@@ -1337,6 +1401,7 @@ function buildAssistantMessage(msg, { streaming = false } = {}) {
 }
 
 function buildThinkingDisclosure(thinking, meta, { streaming = false, open = false } = {}) {
+  if (!modelSupportsThinking()) return null;
   if (!streaming && !thinking) return null;
   const details = document.createElement("details");
   details.className = "think-disclosure";
@@ -1432,7 +1497,8 @@ function buildAgentStepMessage(step, { streamStatus = "" } = {}) {
   if (step.type === "runtime_status") {
     const status = document.createElement("div");
     status.className = "runtime-status-line";
-    status.innerHTML = '<span class="search-spinner" aria-hidden="true"></span><span>Preparing model context…</span>';
+    status.innerHTML = '<span class="search-spinner" aria-hidden="true"></span><span class="runtime-status-text"></span>';
+    status.querySelector(".runtime-status-text").textContent = runtimeStatusCopy(step.label);
     shell.card.appendChild(status);
     const footer = document.createElement("div");
     footer.className = "msg-footer stream-footer";
@@ -1508,6 +1574,10 @@ function updateAgentStepElement(el, step, streamStatus = "") {
   if (!card) return;
 
   if (step.type === "runtime_status") {
+    const role = el.querySelector(".msg-role");
+    if (role) role.textContent = step.label || "Prefill";
+    const statusText = el.querySelector(".runtime-status-text");
+    if (statusText) statusText.textContent = runtimeStatusCopy(step.label);
     const stats = el.querySelector(".msg-stats-inline");
     if (stats) stats.textContent = streamStatus || "Prefill…";
     return;
@@ -1916,7 +1986,7 @@ function renderStreamFrame(state) {
   if (!msgEl) return;
   const wasPinned = isPinnedToBottom(chatScrollEl());
 
-  const { thinking, output } = splitThinking(raw);
+  const { thinking, output } = splitRawThinking(raw);
   const displayThinking = thinking;
   const snap = tracker?.snapshot?.() || {};
   const phaseOpts = {
@@ -1940,7 +2010,7 @@ function renderStreamFrame(state) {
   const footer = msgEl.querySelector(".stream-footer");
   let stats = msgEl.querySelector(".msg-stats-inline");
 
-  const showThinkPanel = modelSupportsThinking() || displayThinking;
+  const showThinkPanel = shouldShowThinkingPanel(displayThinking, { streamPhase });
   if (showThinkPanel) {
     if (!disclosure) {
       const card = msgEl.querySelector(".msg-card");
@@ -1973,6 +2043,8 @@ function renderStreamFrame(state) {
     }
     const discEl = msgEl.querySelector(".think-disclosure");
     if (discEl) discEl.open = true;
+  } else if (disclosure) {
+    disclosure.remove();
   }
 
   if (response) {
@@ -2050,6 +2122,7 @@ function initStreamContext() {
     generatedTokens: 0,
     tps: 0,
     stopRequested: false,
+    toolCallPending: false,
   };
 }
 
@@ -2090,6 +2163,13 @@ function buildLiveAgentStepElement(step, streamStatus) {
   return el;
 }
 
+function runtimeStatusCopy(label) {
+  if (label === "Tool call") return "Preparing tool call…";
+  if (label === "Stopping") return "Stopping…";
+  if (label === "Generating") return "Preparing response…";
+  return "Preparing model context…";
+}
+
 function reconcileAgentStepElements(steps, container, streamStatus) {
   for (let index = 0; index < steps.length; index++) {
     const step = steps[index];
@@ -2117,7 +2197,7 @@ function reconcileAgentStepElements(steps, container, streamStatus) {
 
 function streamStatusFromContext(ctx) {
   const snap = ctx.tracker?.snapshot?.() || {};
-  const { thinking, output } = splitThinking(ctx.raw || "");
+  const { thinking, output } = splitRawThinking(ctx.raw || "");
   const displayThinking = thinking;
   return formatActivePhaseStatus({
     streamPhase: ctx.streamPhase,
@@ -2129,19 +2209,34 @@ function streamStatusFromContext(ctx) {
     tokCount: ctx.generatedTokens,
     tps: ctx.tps,
     ttft: snap.ttft,
-    displayThinking: output ? "" : displayThinking,
+    displayThinking: output
+      ? ""
+      : (shouldShowThinkingPanel(displayThinking, { streamPhase: ctx.streamPhase })
+        ? displayThinking
+        : ""),
   });
 }
 
 function syncActiveAgentSteps(ctx) {
+  const awaitingVisibleOutput =
+    ctx.streamPhase === "generating"
+    && !!streamingAgentMessage
+    && !streamingAgentMessage.thinking
+    && !streamingAgentMessage.content;
+  const runtimeLabel = ctx.streamPhase === "stopping"
+    ? "Stopping"
+    : (ctx.toolCallPending
+      ? "Tool call"
+      : (awaitingVisibleOutput ? "Generating" : "Prefill"));
   const steps = agentMessagesToSteps(activeAgentMessages, {
     streamingMessage: streamingAgentMessage,
     activeToolCallIds,
     runtimeStatus: {
       active: ctx.streamPhase === "prefill"
         || ctx.streamPhase === "stopping"
-        || ctx.prefillActive,
-      label: ctx.streamPhase === "stopping" ? "Stopping" : "Prefill",
+        || ctx.prefillActive
+        || awaitingVisibleOutput,
+      label: runtimeLabel,
     },
   });
   const container = $("chat-messages");
@@ -2174,11 +2269,19 @@ function shouldStreamAnswer(raw, output) {
   return true;
 }
 
+function couldBeThinkingControlPrefix(value) {
+  const trimmed = String(value || "").trimStart();
+  return !!trimmed
+    && ["<think>", "<analysis>"].some(marker => marker.startsWith(trimmed));
+}
+
 function updateStreamingAgentMessage(ctx) {
   const raw = ctx.raw || "";
-  const split = splitThinking(raw);
+  const split = splitRawThinking(raw);
   const output = split.output || "";
   const toolish = looksLikeToolCallSyntax(output) || looksLikeToolCallSyntax(raw);
+  ctx.toolCallPending = toolish
+    && !couldBeThinkingControlPrefix(output || raw);
   streamingAgentMessage = {
     role: "assistant",
     content: !toolish && shouldStreamAnswer(raw, output)
@@ -2295,7 +2398,7 @@ async function runAssistantGeneration(session) {
           applyAgentPolicy(messages, activeTools, {
             toolProtocol: runtime.toolProtocol,
           }),
-        maxNewTokens: state.maxNewTokens,
+        maxNewTokens: effectiveMaxNewTokens(state.maxNewTokens, modelDef),
         contextWindowTokens: modelDef?.contextWindowTokens,
         signal: state.abort.signal,
         callIdPrefix: `${session.id || "session"}_${session.messages.length - 1}`,
@@ -2310,11 +2413,13 @@ async function runAssistantGeneration(session) {
             streamCtx.tracker = new GenerationTracker();
             streamCtx.streamPhase = "prefill";
             streamCtx.prefillActive = true;
+            streamCtx.toolCallPending = false;
             streamCtx.raw = "";
             streamCtx.generatedTokens = 0;
             publishAgentStreamContext(streamCtx);
           } else if (event.type === "message_end") {
             streamingAgentMessage = null;
+            streamCtx.toolCallPending = false;
             activeAgentMessages.push(event.message);
             publishAgentStreamContext(streamCtx);
           } else if (event.type === "tool_start") {
@@ -2322,6 +2427,7 @@ async function runAssistantGeneration(session) {
             streamCtx.streamPhase = "searching";
             streamCtx.searchStartedAt = performance.now();
             streamCtx.prefillActive = false;
+            streamCtx.toolCallPending = false;
             startPhasePulse();
             publishAgentStreamContext(streamCtx);
           } else if (event.type === "tool_end") {
@@ -2329,6 +2435,7 @@ async function runAssistantGeneration(session) {
             activeAgentMessages.push(event.message);
             streamCtx.streamPhase = "prefill";
             streamCtx.prefillActive = true;
+            streamCtx.toolCallPending = false;
             streamCtx.raw = "";
             publishAgentStreamContext(streamCtx);
           }
@@ -2338,24 +2445,29 @@ async function runAssistantGeneration(session) {
       output = result.content || "";
       finalMetrics = result.metrics || streamCtx.tracker.snapshot();
       if (result.aborted) {
-        const split = splitThinking(raw);
+        const split = splitRawThinking(raw);
         thinking = split.thinking || result.thinking || "";
         output = split.output || output;
       }
     } else {
       const enableThinking = modelSupportsThinking();
       const runtimeMessages = buildMessages(session);
+      const boundedMaxNewTokens = effectiveMaxNewTokens(
+        state.maxNewTokens,
+        modelDef,
+      );
       const fittedMessages = fitMessagesToContext(runtimeMessages, {
         contextWindowTokens: modelDef?.contextWindowTokens,
-        maxNewTokens: state.maxNewTokens,
+        maxNewTokens: boundedMaxNewTokens,
         countTokens: messages => runtime.countPromptTokens(
           state.model,
           messages,
           { enableThinking },
         ),
       });
+      runtime.applyChatTemplate?.(state.model, { enableThinking });
       const stream = state.model.generate(fittedMessages, runtime.chatOptions({
-        maxNewTokens: state.maxNewTokens,
+        maxNewTokens: boundedMaxNewTokens,
         enableThinking,
         signal: state.abort.signal,
       }));
@@ -2365,7 +2477,7 @@ async function runAssistantGeneration(session) {
       }
       raw = streamCtx.raw;
       finalMetrics = streamCtx.tracker.snapshot();
-      const split = splitThinking(raw);
+      const split = splitRawThinking(raw);
       thinking = split.thinking;
       output = split.output;
     }
@@ -2375,7 +2487,7 @@ async function runAssistantGeneration(session) {
     const fallback = generationErrorFallback(err, { raw: streamCtx.raw || raw });
     raw = fallback.raw;
     if (fallback.toast) toast(fallback.toast);
-    const split = splitThinking(raw);
+    const split = splitRawThinking(raw);
     thinking = split.thinking;
     output = split.output;
   } finally {
@@ -2390,7 +2502,7 @@ async function runAssistantGeneration(session) {
       cachedTokens: finalMetrics?.cachedTokens ?? 0,
     };
     if (!useAgent) {
-      const split = splitThinking(raw);
+      const split = splitRawThinking(raw);
       thinking = split.thinking;
       output = split.output;
       if (looksLikeToolCallSyntax(output || raw)) {
@@ -2555,8 +2667,13 @@ async function init() {
   if (state.fileOrigin) $("file-origin-note").hidden = false;
 
   await probeWebGPU();
-  await repairBrokenModelCacheLocal();
-  await refreshStorageUI();
+  try {
+    await repairBrokenModelCacheLocal();
+    await refreshStorageUI();
+  } finally {
+    state.storageChecking = false;
+    updateComposerState();
+  }
 }
 
 $("theme-toggle").addEventListener("click", () => {
@@ -2631,7 +2748,10 @@ for (const id of ["grammar-json-schema", "grammar-custom"]) {
 }
 
 $("max-tokens").addEventListener("change", () => {
-  state.maxNewTokens = clampMaxNewTokens($("max-tokens").value);
+  state.maxNewTokens = effectiveMaxNewTokens(
+    clampMaxNewTokens($("max-tokens").value),
+    activeModelDef(),
+  );
   $("max-tokens").value = state.maxNewTokens;
   savePrefs();
 });
