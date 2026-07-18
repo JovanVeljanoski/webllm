@@ -67,6 +67,20 @@ describe("agentMessagesToSteps", () => {
     }).map(step => step.type)).toEqual(["thinking"]);
   });
 
+  it("keeps the runtime step stable while a tool call is being assembled", () => {
+    const prefill = agentMessagesToSteps([], {
+      streamingMessage: { role: "assistant", content: null, thinking: "" },
+      runtimeStatus: { active: true, label: "Prefill" },
+    });
+    const toolCall = agentMessagesToSteps([], {
+      streamingMessage: { role: "assistant", content: null, thinking: "" },
+      runtimeStatus: { active: true, label: "Tool call" },
+    });
+
+    expect(prefill[0].key).toBe(toolCall[0].key);
+    expect(toolCall[0].label).toBe("Tool call");
+  });
+
   it("keeps step keys stable when a streaming message is finalized", () => {
     const message = {
       role: "assistant",

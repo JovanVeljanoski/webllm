@@ -21,6 +21,7 @@ export default [
     ignores: [
       "node_modules/**",
       "gemma-4-e2b.js",
+      "bonsai-27b.js",
       "lfm2_5.js",
       "research-e4b/**",
       "local-analysis.js",

@@ -8,6 +8,7 @@ import {
   buildRuntimeDateContext,
   exportSessionOpenAI,
   exportSessionTrace,
+  splitModelThinking,
   splitThinking,
 } from "../lib/messages.js";
 import { DEFAULT_SYSTEM_PROMPT } from "../lib/constants.js";
@@ -173,6 +174,22 @@ describe("exports", () => {
     expect(trace.modelContext.tools).toEqual([]);
     expect(trace.promptLayers.agentPolicy).toEqual([]);
     expect(trace.modelContext.messages[0].content).not.toContain("web_search");
+  });
+});
+
+describe("splitModelThinking", () => {
+  it("routes Bonsai redacted_thinking tags to the thinking panel", () => {
+    expect(splitModelThinking(
+      "<think>verify</think>Hello",
+      "bonsai",
+    )).toEqual({ thinking: "verify", output: "Hello" });
+  });
+
+  it("routes Gemma channels through splitThinking", () => {
+    expect(splitModelThinking(
+      "<|channel>thought\nreason\n<channel|>\nanswer",
+      "gemma",
+    )).toEqual({ thinking: "reason", output: "answer" });
   });
 });
 

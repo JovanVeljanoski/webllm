@@ -8,7 +8,7 @@ import {
   resolveModelIdForSession,
   sessionModelId,
 } from "../lib/models.js";
-import { DEFAULT_MODEL_ID } from "../lib/constants.js";
+import { BONSAI_CONTEXT_TOKENS, DEFAULT_MODEL_ID } from "../lib/constants.js";
 
 describe("model registry", () => {
   it("uses webllm-prefixed gemma cache name", () => {
@@ -48,7 +48,22 @@ describe("model registry", () => {
 
   it("declares each runtime context window in tokens", () => {
     expect(MODELS.gemma4.contextWindowTokens).toBe(131_072);
+    expect(MODELS.bonsai27b.contextWindowTokens).toBe(BONSAI_CONTEXT_TOKENS);
     expect(MODELS.lfm2.contextWindowTokens).toBe(128_000);
     expect(MODELS.lfm2_350.contextWindowTokens).toBe(128_000);
+  });
+
+  it("registers Bonsai below Gemma and above LFM models", () => {
+    const ids = Object.keys(MODELS);
+    expect(ids.indexOf("gemma4")).toBeLessThan(ids.indexOf("bonsai27b"));
+    expect(ids.indexOf("bonsai27b")).toBeLessThan(ids.indexOf("lfm2"));
+    expect(MODELS.bonsai27b).toMatchObject({
+      runtime: "bonsai",
+      cacheType: "gguf",
+      revision: "main",
+      supportsThinking: false,
+      supportsTools: true,
+      cacheName: "webllm-bonsai27b-v1",
+    });
   });
 });

@@ -4,11 +4,14 @@ import { getRuntimeAdapter } from "../lib/runtime-registry.js";
 describe("runtime registry", () => {
   it("exposes protocol and generation behavior by runtime", () => {
     const gemma = getRuntimeAdapter("gemma");
+    const bonsai = getRuntimeAdapter("bonsai");
     const lfm = getRuntimeAdapter("lfm2");
 
     expect(gemma.toolProtocol).toContain("<|tool_call>");
+    expect(bonsai.toolProtocol).toContain("<tool_call>");
     expect(lfm.toolProtocol).toContain("<|tool_call_start|>");
     expect(gemma.generateAgent).toBeTypeOf("function");
+    expect(bonsai.generateAgent).toBeTypeOf("function");
     expect(lfm.generateAgent).toBeTypeOf("function");
   });
 

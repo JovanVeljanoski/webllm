@@ -14,6 +14,7 @@ model inference.
 The supported registry in `lib/models.js` currently contains:
 
 - `gemma4`: Gemma 4 E2B mobile-QAT, loaded from the vendored `gemma-4-e2b.js` WebGPU runtime.
+- `bonsai27b`: Bonsai 27B GGUF Q1_0, loaded from the vendored `bonsai-27b.js` WebGPU runtime.
 - `lfm2`: LFM2.5 230M GGUF, loaded from `lfm2_5.js`.
 - `lfm2_350`: LFM2.5 350M GGUF, loaded from `lfm2_5.js`.
 
@@ -24,7 +25,10 @@ Gemma 4 E4B is not registered or loadable.
 Inference runs locally through WebGPU. Chat sessions are persisted in the `webllm-sessions` IndexedDB database; preferences and theme are stored in `localStorage`. Model weights are fetched from Hugging Face and cached by the model runtime:
 
 - Gemma safetensors use IndexedDB chunks plus Cache Storage metadata/configuration.
-- LFM2 GGUF files use Cache Storage, with a separate cache name for each model.
+- GGUF models (Bonsai, LFM2) store weight chunks in IndexedDB under each model's
+  `cacheName` (object stores `chunks` + `meta`), with optional response headers in
+  Cache Storage (`${cacheName}-headers`). WebLLM introspection must not force an
+  IndexedDB version during read-only checks.
 
 If Web Search is disabled, prompts, generated content, and chat history remain in
 the browser. When enabled, the `web_search` tool sends normalized queries to the
@@ -56,7 +60,9 @@ through search and runtime generation, and return partial state.
 
 Conversation history is measured with the loaded model's tokenizer before generation.
 The input budget is the model's declared context window minus the requested output tokens
-and a small safety reserve. If trimming is required, it removes whole oldest user turns so
+and a small safety reserve (`CONTEXT_SAFETY_TOKENS`, default 256). On small context
+windows, `capMaxNewTokensForContext()` also enforces a minimum input budget (512 tokens)
+so prompt fitting does not collapse to a single token. If trimming is required, it removes whole oldest user turns so
 assistant tool calls and matching tool results are never split. The current turn is never
 shortened. Web-search evidence is preserved as returned by the provider.
 
@@ -65,9 +71,15 @@ shortened. Web-search evidence is preserved as returned by the provider.
 Runtime adapters are the model-protocol boundary, selected only through
 `lib/runtime-registry.js`. `lib/gemma-adapter.js` converts
 canonical messages to the Gemma runtime shape and normalizes Gemma thinking and
-tool-call output. `lib/lfm-adapter.js` injects tool definitions, renders canonical
+tool-call output. `lib/bonsai-adapter.js` maps canonical messages to Qwen ChatML,
+applies `chatTemplateArgs` (`enable_thinking`, `preserve_thinking`), and splits
+`<think>` output via `lib/bonsai-tool-parser.js` (thinking disabled in
+v1). `lib/lfm-adapter.js` injects tool definitions, renders canonical
 history using LFM2.5's native Python-style function calls, and parses calls wrapped
-in `<|tool_call_start|>` / `<|tool_call_end|>`. The tool registry and bounded loop
+in `<|tool_call_start|>` / `<|tool_call_end|>`. `lib/bonsai-adapter.js`
+maps canonical messages to Qwen ChatML, passes tool schemas into the chat template,
+stops generation at complete `</tool_call>` blocks, and parses XML tool output via
+`lib/bonsai-tool-parser.js`. The tool registry and bounded loop
 remain independent of either runtime.
 
 `lib/tool-call-syntax.js` supplies balanced Gemma call scanning:
@@ -85,8 +97,12 @@ are never executed.
 Prompt policies belong to registered tools. The web-search registration contributes its
 freshness and result-synthesis policies only while that tool is active; tools whose output
 is marked as external also enable the external-data guard. External text is
-sanitized against both Gemma and LFM prompt/tool boundary tokens before entering a
+sanitized against Gemma, LFM, and Bonsai prompt/tool boundary tokens before entering a
 model transcript.
+
+`scripts/bonsai-tool-stop-inline.mjs` supplies the Qwen XML stop scanner injected
+into `bonsai-27b.js`. `scripts/patch-bonsai-runtime.mjs` patches control-token
+preservation, `rawText`, tool schema injection, and early stop in the vendored bundle.
 
 `scripts/tool-call-stop-inline.mjs` contains the equivalent self-contained scanner injected into `gemma-4-e2b.js`. `scripts/patch-gemma-tool-support.mjs` accepts exactly the current upstream or already-patched bundle so upstream drift fails visibly.
 `scripts/patch-lfm-tool-support.mjs` makes the smaller LFM runtime expose decoded
@@ -96,7 +112,7 @@ control tokens only when its adapter requests them; ordinary chat decoding is un
 
 `session.messages` is the single durable chronological transcript. It contains `user`, `assistant`, and `tool` messages directly. Assistant messages may contain `thinking`, `tool_calls`, and generation metrics; tool messages may contain execution metadata. Older embedded `agentSteps`, `toolTrace`, and `toolTranscript` records are flattened when loaded.
 
-During generation, the UI derives temporary steps directly from loop events and canonical draft messages. Prefill appears as a temporary runtime-status card with live metrics and is never persisted. A thinking card exists only when the current assistant message contains thinking; tool calls, tool results, and answers render separately. Streaming cards are finalized in place, unchanged Markdown is not re-rendered, and historical messages do not replay entry animations.
+During generation, the UI derives temporary steps directly from loop events and canonical draft messages. Prefill appears as a temporary runtime-status card with live metrics and is never persisted. A thinking card exists only when the model supports thinking or the current assistant message contains thinking text; tool calls, tool results, and answers render separately. Streaming uses `splitModelThinking(raw, runtime)` so each runtime's control tokens map to the correct panel. Streaming cards are finalized in place, unchanged Markdown is not re-rendered, and historical messages do not replay entry animations.
 
 Each tool invocation gets a conversation-scoped call ID; its matching `tool_call_id` refers to that invocation, while `function.name` identifies `web_search`. Duplicate IDs from older records are repaired when messages are rebuilt or exported.
 
