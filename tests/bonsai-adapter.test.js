@@ -101,6 +101,7 @@ describe("generateBonsaiAssistant", () => {
 
   it("fits complete turns using the Bonsai tokenizer and model context window", async () => {
     let generatedMessages;
+    let capturedRequest;
     const model = {
       chatTemplateArgs: {},
       encodePrompt(messages) {
@@ -129,11 +130,17 @@ describe("generateBonsaiAssistant", () => {
       ],
       maxNewTokens: 4,
       contextWindowTokens: 280,
+      onRequestPrepared: request => { capturedRequest = request; },
     });
 
     expect(generatedMessages).toEqual([
       { role: "system", content: "sys" },
       { role: "user", content: "recent" },
     ]);
+    expect(capturedRequest).toMatchObject({
+      runtime: "bonsai",
+      messages: generatedMessages,
+      tools: [],
+    });
   });
 });

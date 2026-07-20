@@ -48,6 +48,7 @@ describe("LFM adapter", () => {
 
   it("normalizes generated LFM tool calls", async () => {
     let received;
+    let capturedRequest;
     const model = {
       encodePrompt(messages) {
         return Array.from({ length: JSON.stringify(messages).length });
@@ -71,10 +72,17 @@ describe("LFM adapter", () => {
       tools: [lookupTool],
       maxNewTokens: 32,
       contextWindowTokens: 4096,
+      onRequestPrepared: request => { capturedRequest = request; },
     });
 
     expect(received.messages[0].content).toContain("List of tools:");
     expect(received.options).toMatchObject({ maxNewTokens: 32 });
+    expect(capturedRequest).toMatchObject({
+      runtime: "lfm2",
+      messages: received.messages,
+      tools: [lookupTool.schema],
+      maxNewTokens: 32,
+    });
     expect(result.message).toMatchObject({
       content: "Checking.",
       tool_calls: [{

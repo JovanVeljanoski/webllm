@@ -57,6 +57,7 @@ describe("generateGemmaAssistant", () => {
 
   it("fits complete turns using the Gemma tokenizer and model context window", async () => {
     let generatedMessages;
+    let capturedRequest;
     const model = {
       encodePrompt(messages) {
         expect(this._agentTools).toEqual([{ type: "function" }]);
@@ -86,11 +87,18 @@ describe("generateGemmaAssistant", () => {
       tools: [{ name: "lookup", schema: { type: "function" } }],
       maxNewTokens: 4,
       contextWindowTokens: 280,
+      onRequestPrepared: request => { capturedRequest = request; },
     });
 
     expect(generatedMessages).toEqual([
       { role: "system", content: "sys" },
       { role: "user", content: "recent" },
     ]);
+    expect(capturedRequest).toMatchObject({
+      runtime: "gemma",
+      messages: generatedMessages,
+      tools: [{ type: "function" }],
+      maxNewTokens: 4,
+    });
   });
 });

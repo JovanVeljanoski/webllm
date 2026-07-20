@@ -92,4 +92,25 @@ describe("agentMessagesToSteps", () => {
 
     expect(streaming.map(step => step.key)).toEqual(finalized.map(step => step.key));
   });
+
+  it("formats read and grep calls as concise file operations", () => {
+    const steps = agentMessagesToSteps([{
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        {
+          id: "read-1",
+          function: { name: "read", arguments: { path: "notes.md", offset: 20 } },
+        },
+        {
+          id: "grep-1",
+          function: { name: "grep", arguments: { pattern: "deadline", path: "notes.md" } },
+        },
+      ],
+    }]);
+    expect(steps.map(step => step.query)).toEqual([
+      "notes.md from line 20",
+      "deadline in notes.md",
+    ]);
+  });
 });

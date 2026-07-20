@@ -59,6 +59,26 @@ describe("Bonsai tool parsing", () => {
     }]);
   });
 
+  it("parses local read and grep calls with Unicode paths", () => {
+    const readCall =
+      "<tool_call>\n<function=read>\n"
+      + "<parameter=path>\nRésumé notes.md\n</parameter>\n"
+      + "<parameter=offset>\n12\n</parameter>\n</tool_call>";
+    expect(extractBonsaiToolCalls(readCall, false, ["read", "grep"])).toEqual([{
+      name: "read",
+      arguments: { path: "Résumé notes.md", offset: 12 },
+    }]);
+
+    const grepCall =
+      "<tool_call>\n<function=grep>\n"
+      + "<parameter=pattern>\ndeadline\n</parameter>\n"
+      + "<parameter=ignore_case>\ntrue\n</parameter>\n</tool_call>";
+    expect(extractBonsaiToolCalls(grepCall, false, ["read", "grep"])).toEqual([{
+      name: "grep",
+      arguments: { pattern: "deadline", ignore_case: true },
+    }]);
+  });
+
   it("parses thinking plus tool calls from raw output", () => {
     const parsed = parseBonsaiToolOutput(
       `<think>plan</think>${xmlCall}`,
