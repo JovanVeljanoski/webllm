@@ -4,6 +4,7 @@ import {
   activeModelDef,
   loadedModelDef,
   modelLabel,
+  modelLocalFileConfig,
   modelSupportsThinking,
   resolveModelIdForSession,
   sessionModelId,
@@ -51,6 +52,20 @@ describe("model registry", () => {
     expect(MODELS.bonsai27b.contextWindowTokens).toBe(BONSAI_CONTEXT_TOKENS);
     expect(MODELS.lfm2.contextWindowTokens).toBe(128_000);
     expect(MODELS.lfm2_350.contextWindowTokens).toBe(128_000);
+  });
+
+  it("keeps local-file budgets with model capabilities", () => {
+    expect(modelLocalFileConfig("gemma4")).toMatchObject({
+      excerptBytes: 8192,
+      readLines: 100,
+      readBytes: 24576,
+      grepMatches: 50,
+    });
+    expect(modelLocalFileConfig("unknown")).toMatchObject({
+      excerptBytes: 4096,
+      readLines: 100,
+      readBytes: 4096,
+    });
   });
 
   it("registers Bonsai below Gemma and above LFM models", () => {
