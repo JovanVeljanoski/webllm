@@ -14,6 +14,11 @@ function mockGenerate(outputs) {
       messages: structuredClone(params.messages),
       tools: params.tools.map(tool => tool.name),
     });
+    params.onRequestPrepared?.({
+      runtime: "test",
+      messages: structuredClone(params.messages),
+      tools: params.tools.map(tool => tool.schema),
+    });
     const message = outputs[Math.min(index++, outputs.length - 1)];
     return {
       message: structuredClone(message),
@@ -59,6 +64,25 @@ describe("runAgentTurn", () => {
     expect(result.newMessages).toEqual([
       expect.objectContaining({ role: "assistant", content: "Answer" }),
     ]);
+  });
+
+  it("labels exact prepared requests with their generation number", async () => {
+    const captured = [];
+    const mock = mockGenerate([{ role: "assistant", content: "Answer" }]);
+
+    await runAgentTurn({
+      messages: [{ role: "user", content: "Current" }],
+      tools: [],
+      generateFn: mock.generateFn,
+      model: {},
+      maxNewTokens: 64,
+      onRequestPrepared: request => captured.push(request),
+    });
+
+    expect(captured).toEqual([expect.objectContaining({
+      generation: 1,
+      runtime: "test",
+    })]);
   });
 
   it("executes an arbitrary registered tool and continues", async () => {

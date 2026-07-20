@@ -28,6 +28,11 @@ describe("session records", () => {
     expect(session.modelId).toBe("lfm2");
     expect(session.systemPrompt).toBe(DEFAULT_SYSTEM_PROMPT);
     expect(session.messages).toEqual([]);
+    expect(session.toolPreferences).toEqual({
+      read: false,
+      grep: false,
+      web_search: false,
+    });
   });
 
   it("inherits explicit model and web search settings", () => {
@@ -39,7 +44,22 @@ describe("session records", () => {
       models: MODELS,
     });
     expect(session.modelId).toBe("lfm2");
-    expect(session.webSearchPreferred).toBe(true);
+    expect(session.toolPreferences.web_search).toBe(true);
+  });
+
+  it("preserves disabled local file tool preferences per session", () => {
+    const session = createSessionRecord({
+      id: "local-tools",
+      readFilesPreferred: false,
+      grepFilesPreferred: false,
+      models: MODELS,
+    });
+    expect(session.toolPreferences.read).toBe(false);
+    expect(session.toolPreferences.grep).toBe(false);
+
+    const normalized = normalizeSessionRecord(session, MODELS);
+    expect(normalized.toolPreferences.read).toBe(false);
+    expect(normalized.toolPreferences.grep).toBe(false);
   });
 
   it("normalizes titles and first message titles", () => {
@@ -85,19 +105,53 @@ describe("session list helpers", () => {
       systemPrompt: DEFAULT_SYSTEM_PROMPT,
       modelId: "gemma4",
       messages: [{ role: "user", content: "42" }, { role: "assistant", content: "old answer" }],
+      toolPreferences: { read: false, grep: false, web_search: false },
     });
     expect(normalized.messages[1]).not.toHaveProperty("agentTranscript");
     expect(Number.isFinite(normalized.createdAt)).toBe(true);
     expect(normalized).not.toHaveProperty("webSearchPreferred");
   });
 
-  it("preserves per-session web search preference", () => {
+  it("migrates legacy per-session tool preferences", () => {
     const normalized = normalizeSessionRecord({
       id: "tools",
       webSearchPreferred: true,
       messages: [],
     }, MODELS);
-    expect(normalized.webSearchPreferred).toBe(true);
+    expect(normalized.toolPreferences.web_search).toBe(true);
+    expect(normalized).not.toHaveProperty("webSearchPreferred");
+  });
+
+  it("lets the current preference map override stale legacy booleans", () => {
+    const normalized = normalizeSessionRecord({
+      id: "mapped-tools",
+      toolPreferences: { read: false, grep: true, web_search: false },
+      readFilesPreferred: true,
+      webSearchPreferred: true,
+      messages: [],
+    }, MODELS);
+
+    expect(normalized.toolPreferences).toEqual({
+      read: false,
+      grep: true,
+      web_search: false,
+    });
+  });
+
+  it("normalizes stable user file references without duplicates", () => {
+    const normalized = normalizeSessionRecord({
+      id: "files",
+      messages: [{
+        role: "user",
+        content: "Read @notes.md",
+        fileRefs: ["a1", "a1", "", 2],
+      }],
+    }, MODELS);
+    expect(normalized.messages[0]).toEqual({
+      role: "user",
+      content: "Read @notes.md",
+      fileRefs: ["a1", "2"],
+    });
   });
 
   it("migrates embedded agent state to one chronological transcript", () => {
@@ -244,6 +298,32 @@ describe("message branch helpers", () => {
     const next = updateUserMessageAtIndex(session, 0, "Updated hello");
     expect(next?.messages[0].content).toBe("Updated hello");
     expect(next?.title).toBe("Updated hello");
+  });
+
+  it("replaces stale file references when a user message is edited", () => {
+    const withFiles = {
+      ...session,
+      messages: [{
+        role: "user",
+        content: "Compare @old.md",
+        fileRefs: ["old"],
+      }],
+    };
+    const replaced = updateUserMessageAtIndex(
+      withFiles,
+      0,
+      "Compare @new.md",
+      { fileRefs: ["new"] },
+    );
+    const removed = updateUserMessageAtIndex(
+      withFiles,
+      0,
+      "Compare without a file",
+      { fileRefs: [] },
+    );
+
+    expect(replaced?.messages[0].fileRefs).toEqual(["new"]);
+    expect(removed?.messages[0]).not.toHaveProperty("fileRefs");
   });
 
   it("finds the latest user message and validates regenerate targets", () => {

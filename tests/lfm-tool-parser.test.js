@@ -34,6 +34,22 @@ describe("LFM tool protocol", () => {
     ]);
   });
 
+  it("parses local read and grep named arguments", () => {
+    const parsed = parseLfmToolOutput(
+      '<|tool_call_start|>[read(path="notes (2).md", offset=81), '
+      + "grep(pattern='deadline', include='*.md', ignore_case=True)]"
+      + "<|tool_call_end|>",
+      ["read", "grep"],
+    );
+    expect(parsed.toolCalls).toEqual([
+      { name: "read", arguments: { path: "notes (2).md", offset: 81 } },
+      {
+        name: "grep",
+        arguments: { pattern: "deadline", include: "*.md", ignore_case: true },
+      },
+    ]);
+  });
+
   it("parses calls when a decoder strips LFM control tokens", () => {
     const parsed = parseLfmToolOutput(
       "[web_search(queries=['latest Apple news'])]",

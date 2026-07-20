@@ -32,6 +32,23 @@ describe("Gemma protocol parsing", () => {
     });
   });
 
+  it("parses read and grep calls with file paths and search controls", () => {
+    expect(parseGemmaToolOutput(
+      'call:read{path:<|"|>notes (2).md<|"|>,offset:81,limit:100}',
+      ["read", "grep"],
+    ).toolCalls[0]).toEqual({
+      name: "read",
+      arguments: { path: "notes (2).md", offset: 81, limit: 100 },
+    });
+    expect(parseGemmaToolOutput(
+      'call:grep{pattern:<|"|>deadline<|"|>,include:<|"|>*.md<|"|>,ignore_case:true}',
+      ["read", "grep"],
+    ).toolCalls[0]).toEqual({
+      name: "grep",
+      arguments: { pattern: "deadline", include: "*.md", ignore_case: true },
+    });
+  });
+
   it("marks incomplete syntax as truncated", () => {
     const parsed = parseGemmaToolOutput(
       '<|tool_call>call:web_search{query:<|"|>partial',

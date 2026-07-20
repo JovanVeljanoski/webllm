@@ -35,7 +35,12 @@ import {
 import { runAgentTurn } from "./lib/agent-loop.js";
 import { getRuntimeAdapter } from "./lib/runtime-registry.js";
 import { fitMessagesToContext, effectiveMaxNewTokens } from "./lib/context-window.js";
-import { createWebSearchTool } from "./lib/web-search-tool.js";
+import {
+  activeToolNames,
+  createActiveTools,
+  localFileReferencesAvailable,
+  resolveToolAvailability,
+} from "./lib/tool-registry.js";
 import { agentMessagesToSteps } from "./lib/agent-ui.js";
 import { looksLikeToolCallSyntax, stripToolCallSyntax, hasUnclosedThoughtChannel } from "./lib/tool-parser.js";
 import { sanitizeExternalText } from "./lib/sanitize.js";
@@ -60,6 +65,7 @@ import {
   lastUserMessageContent,
   truncateSessionMessagesAfterIndex,
   updateUserMessageAtIndex,
+  normalizeToolPreferences,
 } from "./lib/sessions.js";
 import { generationErrorFallback } from "./lib/generation.js";
 import { detectBrowser } from "./lib/browser.js";
@@ -72,6 +78,25 @@ import {
 } from "./lib/ui-state.js";
 import { buildPrefsPayload, parsePrefsJson } from "./lib/prefs.js";
 import { openSessionDB, dbGetAll, dbPut, dbDelete } from "./lib/session-storage.js";
+import {
+  dbCleanupOrphanAttachments,
+  dbDeleteAttachment,
+  dbGetSessionAttachments,
+  dbPutAttachment,
+} from "./lib/attachment-storage.js";
+import {
+  acceptedFileInputValue,
+  formatBytes,
+  ingestAttachmentFile,
+  workspaceUsage,
+} from "./lib/attachments.js";
+import {
+  findAtFileQuery,
+  fuzzyMatchAttachments,
+  reconcileSelectedFileRefs,
+  replaceAtFileQuery,
+  resolveDraftFileRefs,
+} from "./lib/file-reference.js";
 import { createDebouncer } from "./lib/debounce.js";
 import {
   createCacheEnv,
@@ -118,8 +143,31 @@ function splitRawThinking(raw) {
 }
 
 function webSearchEffective() {
-  const def = loadedModelDef() || activeModelDef();
-  return !!state.webSearchPreferred && !!def?.supportsTools && !!state.model;
+  return toolAvailability().some(tool => tool.id === "web_search" && tool.active);
+}
+
+function toolAvailability({
+  attachments = state.attachments,
+  preferences = state.toolPreferences,
+  runtimeReady = !!state.model,
+  grammarMode = state.grammarMode,
+  modelDef = loadedModelDef() || activeModelDef(),
+} = {}) {
+  return resolveToolAvailability({
+    attachments,
+    preferences,
+    modelSupportsTools: !!modelDef?.supportsTools,
+    grammarMode,
+    runtimeReady,
+  });
+}
+
+function localReferencesEnabled() {
+  return localFileReferencesAvailable(toolAvailability({ runtimeReady: false }));
+}
+
+function agentModeEffective() {
+  return toolAvailability().some(tool => tool.active);
 }
 
 function grammarConfig() {
@@ -199,6 +247,8 @@ const ICONS = {
   download: '<svg viewBox="0 0 24 24"><path d="M12 3v10"/><path d="m8 11 4 4 4-4"/><path d="M5 21h14"/></svg>',
   brain: '<svg viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3v1a2 2 0 0 0-2 2 2 2 0 0 0 0 4 2 2 0 0 0 2 2v1a3 3 0 0 0 3 3"/><path d="M15 4a3 3 0 0 1 3 3v1a2 2 0 0 1 2 2 2 2 0 0 1 0 4 2 2 0 0 1-2 2v1a3 3 0 0 1-3 3"/><path d="M9 7h6M9 17h6"/></svg>',
   wrench: '<svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+  paperclip: '<svg viewBox="0 0 24 24"><path d="m21.4 11.6-8.9 8.9a6 6 0 0 1-8.5-8.5l9.6-9.6a4 4 0 0 1 5.7 5.7l-9.6 9.6a2 2 0 0 1-2.8-2.8l8.9-8.9"/></svg>',
+  file: '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>',
 };
 
 function icon(name) {
@@ -240,7 +290,13 @@ const state = {
   modelLoadSecs: null,
   selectedModelId: DEFAULT_MODEL_ID,
   loadedModelId: null,
-  webSearchPreferred: false,
+  toolPreferences: normalizeToolPreferences(),
+  attachments: [],
+  attachmentsBySession: new Map(),
+  pendingFileRefs: new Set(),
+  runtimeTracesBySession: new Map(),
+  fileAutocompleteIndex: 0,
+  fileAutocompleteMatches: [],
 };
 
 const $ = id => document.getElementById(id);
@@ -284,6 +340,35 @@ function activeSession() {
   return state.sessions.find(s => s.id === state.activeSessionId) || null;
 }
 
+function setActiveAttachments(attachments) {
+  const sessionId = state.activeSessionId;
+  state.attachments = attachments || [];
+  if (sessionId) state.attachmentsBySession.set(sessionId, state.attachments);
+}
+
+async function loadAttachmentsForSession(sessionId) {
+  if (!sessionId) {
+    setActiveAttachments([]);
+    return [];
+  }
+  if (state.attachmentsBySession.has(sessionId)) {
+    const cached = state.attachmentsBySession.get(sessionId);
+    if (state.activeSessionId === sessionId) setActiveAttachments(cached);
+    return cached;
+  }
+  let attachments = [];
+  if (state.db) {
+    try {
+      attachments = await dbGetSessionAttachments(state.db, sessionId);
+    } catch (err) {
+      disableSessionPersistence(err);
+    }
+  }
+  state.attachmentsBySession.set(sessionId, attachments);
+  if (state.activeSessionId === sessionId) setActiveAttachments(attachments);
+  return attachments;
+}
+
 function isEmptyStateVisible() {
   const session = activeSession();
   return $("empty-state").style.display !== "none" && !session?.messages?.length;
@@ -311,7 +396,11 @@ function inheritedSessionSettings() {
     : resolveModelIdForSession(activeSession(), DEFAULT_MODEL_ID);
   return {
     modelId,
-    webSearchPreferred: state.webSearchPreferred,
+    toolPreferences: {
+      read: false,
+      grep: false,
+      web_search: state.toolPreferences.web_search === true,
+    },
   };
 }
 
@@ -325,10 +414,13 @@ async function createSession(title = "New chat") {
     id: uid(),
     title,
     modelId: inherited.modelId,
-    webSearchPreferred: inherited.webSearchPreferred,
+    toolPreferences: inherited.toolPreferences,
     models: MODELS,
   });
   state.activeSessionId = session.id;
+  state.toolPreferences = { ...session.toolPreferences };
+  state.pendingFileRefs.clear();
+  setActiveAttachments([]);
   await persistSession(session);
   return session;
 }
@@ -345,15 +437,22 @@ async function deleteSession(id) {
       disableSessionPersistence(err);
     }
   }
+  const deletingActive = state.activeSessionId === id;
   state.sessions = state.sessions.filter(s => s.id !== id);
-  if (state.activeSessionId === id) {
+  state.attachmentsBySession.delete(id);
+  state.runtimeTracesBySession.delete(id);
+  if (deletingActive) {
     state.activeSessionId = state.sessions[0]?.id || null;
     if (!state.activeSessionId) await createSession();
+    else await loadAttachmentsForSession(state.activeSessionId);
+    state.pendingFileRefs.clear();
   }
+  syncUIFromSession();
   savePrefs();
   renderSessionList();
+  renderFilesWorkspace();
+  renderPendingFileRefs();
   renderChat();
-  syncUIFromSession();
   mountWebGpuBanner();
   return true;
 }
@@ -382,13 +481,14 @@ function savePrefs() {
       sessionSearch: state.sessionSearch,
       sidebarOpen: {
         conversations: $("conversations-block")?.open,
+        files: $("files-block")?.open,
         system: $("system-block")?.open,
         model: $("model-block")?.open,
         tools: $("tools-block")?.open,
         settings: $("settings-block")?.open,
         storage: $("storage-block")?.open,
       },
-      webSearchPreferred: state.webSearchPreferred,
+      webSearchPreferred: state.toolPreferences.web_search,
     })));
   } catch { /* ignore */ }
 }
@@ -410,9 +510,10 @@ function loadPrefs() {
       state.sessionSearch = p.sessionSearch;
       $("session-search").value = p.sessionSearch;
     }
-    state.webSearchPreferred = p.webSearchPreferred === true;
+    state.toolPreferences.web_search = p.webSearchPreferred === true;
     if (p.sidebarOpen) {
       if (typeof p.sidebarOpen.conversations === "boolean") $("conversations-block").open = p.sidebarOpen.conversations;
+      if (typeof p.sidebarOpen.files === "boolean") $("files-block").open = p.sidebarOpen.files;
       if (typeof p.sidebarOpen.system === "boolean") $("system-block").open = p.sidebarOpen.system;
       if (typeof p.sidebarOpen.model === "boolean") $("model-block").open = p.sidebarOpen.model;
       if (typeof p.sidebarOpen.tools === "boolean") $("tools-block").open = p.sidebarOpen.tools;
@@ -730,6 +831,7 @@ async function applyModelSelection(modelId, { silent = false, persistToSession =
   savePrefs();
   renderModelPicker();
   updateWebSearchUI();
+  updateLocalFileToolsUI();
   await refreshStorageUI();
   updateEmptyCacheHint();
 }
@@ -826,6 +928,255 @@ function updateEmptyLoader() {
   mountWebGpuBanner();
 }
 
+function bindAttachmentDeleteConfirm(button, row, attachment) {
+  button.addEventListener("click", event => {
+    event.stopPropagation();
+    const actions = row.querySelector(".file-workspace-actions");
+    row.classList.add("confirming");
+    actions.innerHTML = `
+      <span class="confirm-label">Remove?</span>
+      <button type="button" class="icon-btn" data-cancel aria-label="Cancel"></button>
+      <button type="button" class="icon-btn danger" data-confirm aria-label="Confirm removal"></button>`;
+    setIcon(actions.querySelector("[data-cancel]"), "close");
+    setIcon(actions.querySelector("[data-confirm]"), "trash");
+    const revert = () => renderFilesWorkspace();
+    const timer = setTimeout(revert, 4000);
+    actions.querySelector("[data-cancel]").addEventListener("click", cancelEvent => {
+      cancelEvent.stopPropagation();
+      clearTimeout(timer);
+      revert();
+    });
+    actions.querySelector("[data-confirm]").addEventListener("click", async confirmEvent => {
+      confirmEvent.stopPropagation();
+      clearTimeout(timer);
+      await removeAttachment(attachment.id);
+    });
+  });
+}
+
+function renderFilesWorkspace() {
+  const list = $("files-list");
+  if (!list) return;
+  const usage = workspaceUsage(state.attachments);
+  const referencesEnabled = localReferencesEnabled();
+  $("files-count").textContent = usage.count ? `(${usage.count})` : "";
+  $("files-usage").textContent = `${usage.count} / 10 · ${formatBytes(usage.bytes)} / 5 MB`;
+  $("add-files-btn").disabled = state.busy || state.loading || usage.count >= 10;
+  $("attach-files-btn").disabled = state.busy || state.loading || usage.count >= 10;
+
+  if (!state.attachments.length) {
+    list.innerHTML = '<div class="file-workspace-empty">Add Markdown, JSON, CSV, source, or other supported text files.</div>';
+    return;
+  }
+
+  list.replaceChildren(...state.attachments.map(attachment => {
+    const row = document.createElement("div");
+    row.className = "file-workspace-item";
+    row.append(icon("file"));
+    const main = document.createElement("button");
+    main.type = "button";
+    main.className = "file-workspace-main";
+    main.disabled = !referencesEnabled;
+    main.title = main.disabled
+      ? "Enable Read or Grep to reference this file"
+      : `Reference @${attachment.virtualPath}`;
+    main.innerHTML = `
+      <span class="file-workspace-name">${esc(attachment.virtualPath)}</span>
+      <span class="file-workspace-meta">${attachment.lineCount} lines · ${esc(formatBytes(attachment.storedBytes))}</span>`;
+    main.addEventListener("click", () => addFileReference(attachment));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "icon-btn danger";
+    remove.setAttribute("aria-label", `Remove ${attachment.virtualPath}`);
+    remove.title = "Remove file";
+    remove.disabled = state.busy || state.loading;
+    setIcon(remove, "close");
+    const actions = document.createElement("div");
+    actions.className = "file-workspace-actions";
+    actions.appendChild(remove);
+    bindAttachmentDeleteConfirm(remove, row, attachment);
+    row.append(main, actions);
+    return row;
+  }));
+}
+
+function renderPendingFileRefs() {
+  const container = $("composer-file-chips");
+  if (!container) return;
+  if (!localReferencesEnabled()) state.pendingFileRefs.clear();
+  const attachmentsById = new Map(state.attachments.map(item => [String(item.id), item]));
+  const validIds = [...state.pendingFileRefs].filter(id => attachmentsById.has(String(id)));
+  state.pendingFileRefs = new Set(validIds);
+  container.classList.toggle("show", validIds.length > 0);
+  container.replaceChildren(...validIds.map(id => {
+    const attachment = attachmentsById.get(String(id));
+    const chip = document.createElement("span");
+    chip.className = "file-chip";
+    chip.append(icon("file"));
+    const name = document.createElement("span");
+    name.className = "file-chip-name";
+    name.textContent = attachment.virtualPath;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "file-chip-remove";
+    remove.setAttribute("aria-label", `Remove ${attachment.virtualPath} from this message`);
+    remove.textContent = "×";
+    remove.addEventListener("click", () => {
+      state.pendingFileRefs.delete(String(id));
+      renderPendingFileRefs();
+    });
+    chip.append(name, remove);
+    return chip;
+  }));
+}
+
+function hideFileAutocomplete() {
+  state.fileAutocompleteMatches = [];
+  state.fileAutocompleteIndex = 0;
+  $("file-autocomplete")?.classList.remove("show");
+  $("file-autocomplete")?.replaceChildren();
+}
+
+function updateFileAutocomplete() {
+  const input = $("user-input");
+  const menu = $("file-autocomplete");
+  const range = findAtFileQuery(input.value, input.selectionStart);
+  if (!range || !state.attachments.length || input.disabled || !localReferencesEnabled()) {
+    hideFileAutocomplete();
+    return;
+  }
+  const matches = fuzzyMatchAttachments(state.attachments, range.query);
+  if (!matches.length) {
+    hideFileAutocomplete();
+    return;
+  }
+  state.fileAutocompleteMatches = matches;
+  state.fileAutocompleteIndex = Math.min(state.fileAutocompleteIndex, matches.length - 1);
+  menu.replaceChildren(...matches.map((attachment, index) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = `file-autocomplete-item${index === state.fileAutocompleteIndex ? " active" : ""}`;
+    item.setAttribute("role", "option");
+    item.setAttribute("aria-selected", index === state.fileAutocompleteIndex ? "true" : "false");
+    item.innerHTML = `
+      <span class="file-autocomplete-name">@${esc(attachment.virtualPath)}</span>
+      <span class="file-autocomplete-meta">${esc(formatBytes(attachment.storedBytes))}</span>`;
+    item.addEventListener("mousedown", event => event.preventDefault());
+    item.addEventListener("click", () => selectFileAutocomplete(index));
+    return item;
+  }));
+  menu.classList.add("show");
+}
+
+function selectFileAutocomplete(index = state.fileAutocompleteIndex) {
+  const attachment = state.fileAutocompleteMatches[index];
+  const input = $("user-input");
+  const range = findAtFileQuery(input.value, input.selectionStart);
+  if (!attachment || !range) {
+    hideFileAutocomplete();
+    return false;
+  }
+  const replaced = replaceAtFileQuery(input.value, range, attachment.virtualPath);
+  input.value = replaced.value;
+  input.setSelectionRange(replaced.caret, replaced.caret);
+  state.pendingFileRefs.add(String(attachment.id));
+  hideFileAutocomplete();
+  renderPendingFileRefs();
+  autoResizeTextarea(input);
+  input.focus();
+  return true;
+}
+
+function addFileReference(attachment) {
+  if (!localReferencesEnabled()) {
+    toast("Enable Read or Grep before referencing a file.");
+    return;
+  }
+  state.pendingFileRefs.add(String(attachment.id));
+  const input = $("user-input");
+  const caret = input.selectionStart ?? input.value.length;
+  const before = input.value.slice(0, caret);
+  const after = input.value.slice(caret);
+  const prefix = before && !/\s$/.test(before) ? " " : "";
+  const suffix = after && !/^\s/.test(after) ? " " : "";
+  const inserted = `${prefix}@${attachment.virtualPath}${suffix || " "}`;
+  input.value = `${before}${inserted}${after}`;
+  const nextCaret = before.length + inserted.length;
+  input.setSelectionRange(nextCaret, nextCaret);
+  autoResizeTextarea(input);
+  renderPendingFileRefs();
+  focusComposerInput($("user-input"));
+}
+
+async function addSelectedFiles(fileList) {
+  const session = activeSession();
+  if (!session || state.busy || state.loading) return;
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  let attachments = [...state.attachments];
+  let added = 0;
+  for (const file of files) {
+    try {
+      const attachment = await ingestAttachmentFile(file, {
+        sessionId: session.id,
+        attachments,
+        id: uid(),
+      });
+      if (state.db) {
+        try {
+          await dbPutAttachment(state.db, attachment);
+        } catch (error) {
+          disableSessionPersistence(error);
+        }
+      }
+      attachments.push(attachment);
+      added++;
+    } catch (error) {
+      toast(error instanceof Error ? error.message : String(error), { duration: 5000 });
+    }
+  }
+  setActiveAttachments(attachments);
+  if (added) {
+    state.toolPreferences.read = true;
+    state.toolPreferences.grep = true;
+    session.toolPreferences = { ...state.toolPreferences };
+    await persistSession(session);
+    if (state.grammarMode !== "off") {
+      state.grammarMode = "off";
+      savePrefs();
+      toast("Grammar mode disabled while conversation file tools are active.");
+    }
+  }
+  renderFilesWorkspace();
+  renderPendingFileRefs();
+  updateGrammarUI();
+  hideFileAutocomplete();
+  if (added) toast(`Added ${added} file${added === 1 ? "" : "s"} to this conversation.`);
+}
+
+async function removeAttachment(id) {
+  if (state.busy || state.loading) {
+    toast("Wait until the current operation finishes.");
+    return;
+  }
+  const attachment = state.attachments.find(item => String(item.id) === String(id));
+  if (!attachment) return;
+  if (state.db) {
+    try {
+      await dbDeleteAttachment(state.db, id);
+    } catch (error) {
+      disableSessionPersistence(error);
+    }
+  }
+  state.pendingFileRefs.delete(String(id));
+  setActiveAttachments(state.attachments.filter(item => String(item.id) !== String(id)));
+  renderFilesWorkspace();
+  renderPendingFileRefs();
+  renderChat();
+  updateGrammarUI();
+  toast(`Removed ${attachment.virtualPath}.`);
+}
+
 function updateComposerState() {
   const canSend = state.model && !state.busy && !state.loading;
   const sessionLocked = state.busy || state.loading;
@@ -840,6 +1191,9 @@ function updateComposerState() {
   $("chat-title-edit").disabled = sessionLocked;
   $("system-prompt").disabled = sessionLocked;
   $("session-search").disabled = sessionLocked;
+  renderFilesWorkspace();
+  updateLocalFileToolsUI();
+  if (sessionLocked) hideFileAutocomplete();
 
   const loadDisabled =
     state.loading
@@ -943,6 +1297,7 @@ async function loadModel() {
     if (state.model) restoreIdleStatus();
     updateComposerState();
     updateWebSearchUI();
+    updateLocalFileToolsUI();
     renderModelPicker();
   }
 }
@@ -952,7 +1307,7 @@ async function loadModel() {
 let pendingDownloadSessionId = null;
 let queuedDownload = null;
 
-function downloadSession(sessionId, format = "conversation") {
+async function downloadSession(sessionId, format = "conversation") {
   const session = state.sessions.find(s => s.id === sessionId);
   if (!session) return;
   if (!session.messages?.length) {
@@ -960,15 +1315,38 @@ function downloadSession(sessionId, format = "conversation") {
     return;
   }
   const fullTrace = format === "trace";
+  const attachments = await loadAttachmentsForSession(sessionId);
   const recordedMode = session.lastExecution?.mode;
+  const sessionPreferences = normalizeToolPreferences(session.toolPreferences);
   const agentMode = recordedMode
     ? recordedMode === "agent"
-    : webSearchEffective()
+    : attachments.length > 0
+      || sessionPreferences.web_search
       || session.messages.some(message => message.role === "tool" || message.tool_calls?.length);
   const modelDef = MODELS[resolveModelIdForSession(session, DEFAULT_MODEL_ID)];
   const runtime = getRuntimeAdapter(modelDef.runtime);
+  const recordedTools = new Set(session.lastExecution?.tools || []);
+  const preferences = recordedMode
+    ? {
+      read: recordedTools.has("read"),
+      grep: recordedTools.has("grep"),
+      web_search: recordedTools.has("web_search"),
+    }
+    : sessionPreferences;
+  const availability = resolveToolAvailability({
+    attachments,
+    preferences,
+    modelSupportsTools: !!modelDef.supportsTools,
+    grammarMode: agentMode ? "off" : state.grammarMode,
+    runtimeReady: true,
+  });
   const tools = agentMode
-    ? [createWebSearchTool(defaultSearchProvider)]
+    ? createActiveTools({
+      attachments,
+      modelId: modelDef.id,
+      availability,
+      searchProvider: defaultSearchProvider,
+    })
     : [];
   const payload = fullTrace
     ? exportSessionTrace(session, {
@@ -976,6 +1354,11 @@ function downloadSession(sessionId, format = "conversation") {
       grammarConfig: grammarConfig(),
       toolProtocol: runtime.toolProtocol,
       tools,
+      attachments,
+      referenceAttachments: localFileReferencesAvailable(availability)
+        ? attachments
+        : [],
+      runtimeTrace: state.runtimeTracesBySession.get(String(sessionId)) || null,
     })
     : exportSessionOpenAI(session);
   const json = JSON.stringify(payload, null, 2);
@@ -989,7 +1372,12 @@ function downloadSession(sessionId, format = "conversation") {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-  toast(`Downloaded "${session.title}"${fullTrace ? " (full trace)" : ""}`);
+  const traceLabel = fullTrace
+    ? (payload.provenance === "exact_runtime_capture"
+      ? " (exact runtime trace)"
+      : " (reconstructed diagnostic snapshot)")
+    : "";
+  toast(`Downloaded "${session.title}"${traceLabel}`);
 }
 
 function openDownloadDialog(sessionId) {
@@ -1215,14 +1603,16 @@ function generationSendCheck(session) {
   };
 }
 
-async function commitUserMessageEdit(messageIndex, content) {
+async function commitUserMessageEdit(messageIndex, content, fileRefs = []) {
   if (state.busy || state.loading) {
     toast("Wait until the current operation finishes.");
     return false;
   }
   const session = activeSession();
   if (!session) return false;
-  const next = updateUserMessageAtIndex(session, messageIndex, content);
+  const next = updateUserMessageAtIndex(session, messageIndex, content, {
+    fileRefs,
+  });
   if (!next) {
     toast("Message cannot be empty");
     return false;
@@ -1240,7 +1630,8 @@ function startUserMessageEdit(messageIndex) {
     return;
   }
   const session = activeSession();
-  if (!session?.messages[messageIndex] || session.messages[messageIndex].role !== "user") return;
+  const message = session?.messages[messageIndex];
+  if (!message || message.role !== "user") return;
 
   const wrap = userMessageEl(messageIndex);
   if (!wrap || wrap.dataset.editing === "1") return;
@@ -1248,6 +1639,7 @@ function startUserMessageEdit(messageIndex) {
   const contentEl = wrap.querySelector(".msg-content");
   const headActions = wrap.querySelector(".msg-head-actions");
   if (!contentEl || !headActions) return;
+  const historicalRefs = wrap.querySelector(".message-file-refs");
 
   const original = contentEl.textContent || "";
   wrap.classList.add("editing");
@@ -1258,6 +1650,104 @@ function startUserMessageEdit(messageIndex) {
   ta.value = original;
   ta.rows = 1;
   contentEl.replaceWith(ta);
+  if (historicalRefs) historicalRefs.hidden = true;
+
+  const referenceBar = document.createElement("div");
+  referenceBar.className = "msg-edit-file-refs";
+  const autocomplete = document.createElement("div");
+  autocomplete.className = "msg-edit-file-autocomplete";
+  autocomplete.setAttribute("role", "listbox");
+  ta.after(referenceBar, autocomplete);
+
+  let editRefs = new Set((message.fileRefs || []).map(String));
+  let autocompleteMatches = [];
+  let autocompleteIndex = 0;
+
+  const hideAutocomplete = () => {
+    autocompleteMatches = [];
+    autocompleteIndex = 0;
+    autocomplete.classList.remove("show");
+    autocomplete.replaceChildren();
+  };
+
+  const renderEditRefs = () => {
+    const byId = new Map(state.attachments.map(attachment => [String(attachment.id), attachment]));
+    const refs = [...editRefs].map(id => byId.get(id)).filter(Boolean);
+    referenceBar.classList.toggle("show", refs.length > 0);
+    referenceBar.replaceChildren(...refs.map(attachment => {
+      const chip = document.createElement("span");
+      chip.className = `file-chip${localReferencesEnabled() ? "" : " inactive"}`;
+      chip.append(icon("file"));
+      const name = document.createElement("span");
+      name.className = "file-chip-name";
+      name.textContent = attachment.virtualPath;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "file-chip-remove";
+      remove.setAttribute("aria-label", `Remove ${attachment.virtualPath} from this message`);
+      remove.textContent = "×";
+      remove.addEventListener("click", () => {
+        editRefs.delete(String(attachment.id));
+        renderEditRefs();
+      });
+      chip.append(name, remove);
+      return chip;
+    }));
+  };
+
+  const reconcileEditRefs = () => {
+    editRefs = new Set(reconcileSelectedFileRefs(
+      editRefs,
+      ta.value,
+      state.attachments,
+    ));
+    renderEditRefs();
+  };
+
+  const selectAutocomplete = (index = autocompleteIndex) => {
+    const attachment = autocompleteMatches[index];
+    const range = findAtFileQuery(ta.value, ta.selectionStart);
+    if (!attachment || !range) return false;
+    const replaced = replaceAtFileQuery(ta.value, range, attachment.virtualPath);
+    ta.value = replaced.value;
+    ta.setSelectionRange(replaced.caret, replaced.caret);
+    editRefs.add(String(attachment.id));
+    hideAutocomplete();
+    renderEditRefs();
+    autoResizeTextarea(ta);
+    ta.focus();
+    return true;
+  };
+
+  const updateAutocomplete = () => {
+    const range = findAtFileQuery(ta.value, ta.selectionStart);
+    if (!range || !localReferencesEnabled()) {
+      hideAutocomplete();
+      return;
+    }
+    autocompleteMatches = fuzzyMatchAttachments(state.attachments, range.query);
+    if (!autocompleteMatches.length) {
+      hideAutocomplete();
+      return;
+    }
+    autocompleteIndex = Math.min(autocompleteIndex, autocompleteMatches.length - 1);
+    autocomplete.replaceChildren(...autocompleteMatches.map((attachment, index) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className =
+        `file-autocomplete-item${index === autocompleteIndex ? " active" : ""}`;
+      item.setAttribute("role", "option");
+      item.innerHTML = `
+        <span class="file-autocomplete-name">@${esc(attachment.virtualPath)}</span>
+        <span class="file-autocomplete-meta">${esc(formatBytes(attachment.storedBytes))}</span>`;
+      item.addEventListener("mousedown", event => event.preventDefault());
+      item.addEventListener("click", () => selectAutocomplete(index));
+      return item;
+    }));
+    autocomplete.classList.add("show");
+  };
+
+  reconcileEditRefs();
   autoResizeTextarea(ta);
   ta.focus();
   ta.setSelectionRange(ta.value.length, ta.value.length);
@@ -1288,13 +1778,35 @@ function startUserMessageEdit(messageIndex) {
         renderChat();
         return;
       }
-      await commitUserMessageEdit(idx, next);
+      reconcileEditRefs();
+      await commitUserMessageEdit(idx, next, [...editRefs]);
       return;
     }
     renderChat();
   };
 
   ta.addEventListener("keydown", e => {
+    if (autocomplete.classList.contains("show")) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const direction = e.key === "ArrowDown" ? 1 : -1;
+        autocompleteIndex =
+          (autocompleteIndex + direction + autocompleteMatches.length)
+          % autocompleteMatches.length;
+        updateAutocomplete();
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        selectAutocomplete();
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        hideAutocomplete();
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       finishUserMessageEdit(messageIndex, true);
@@ -1304,6 +1816,13 @@ function startUserMessageEdit(messageIndex) {
       finishUserMessageEdit(messageIndex, false);
     }
   });
+  ta.addEventListener("input", () => {
+    autoResizeTextarea(ta);
+    reconcileEditRefs();
+    autocompleteIndex = 0;
+    updateAutocomplete();
+  });
+  ta.addEventListener("click", updateAutocomplete);
 }
 
 async function rerunFromUserMessage(messageIndex) {
@@ -1343,7 +1862,7 @@ async function rerunFromUserMessage(messageIndex) {
   await runAssistantGeneration(session);
 }
 
-function buildUserMessage(content, messageIndex) {
+function buildUserMessage(message, messageIndex) {
   const wrap = document.createElement("div");
   wrap.className = "msg user";
   wrap.dataset.msgIndex = String(messageIndex);
@@ -1351,8 +1870,23 @@ function buildUserMessage(content, messageIndex) {
   shell.inner.append(createAvatar("user"), shell.body);
   const contentEl = document.createElement("div");
   contentEl.className = "msg-content";
-  contentEl.textContent = content;
+  contentEl.textContent = message.content;
   shell.card.appendChild(contentEl);
+  if (message.fileRefs?.length) {
+    const references = document.createElement("div");
+    references.className = "message-file-refs";
+    for (const id of message.fileRefs) {
+      const attachment = state.attachments.find(item => String(item.id) === String(id));
+      const chip = document.createElement("span");
+      const inactive = attachment && !localReferencesEnabled();
+      chip.className =
+        `message-file-chip${attachment ? "" : " unavailable"}${inactive ? " inactive" : ""}`;
+      chip.textContent = attachment ? attachment.virtualPath : "File unavailable";
+      if (inactive) chip.title = "File tools are disabled; this reference is not in model context.";
+      references.appendChild(chip);
+    }
+    shell.card.appendChild(references);
+  }
   wrap.appendChild(shell.inner);
   return wrap;
 }
@@ -1838,39 +2372,99 @@ function syncUIFromSession() {
   if (!session) return;
   $("system-prompt").value = session.systemPrompt || DEFAULT_SYSTEM_PROMPT;
   syncModelFromSession(session);
-  if (typeof session.webSearchPreferred === "boolean") {
-    state.webSearchPreferred = session.webSearchPreferred;
+  state.toolPreferences = normalizeToolPreferences(session.toolPreferences);
+  const disabledGrammar = state.grammarMode !== "off"
+    && toolAvailability({ runtimeReady: false, grammarMode: "off" })
+      .some(tool => tool.preferred && tool.available && tool.conflictsWithGrammar);
+  if (disabledGrammar) {
+    state.grammarMode = "off";
   }
   updateChatTitle();
   updateGrammarUI();
+  if (disabledGrammar) savePrefs();
 }
 
 function updateGrammarUI() {
-  const webOn = webSearchEffective() || state.webSearchPreferred;
+  const toolsOn = toolAvailability({ runtimeReady: false, grammarMode: "off" })
+    .some(tool => tool.preferred && tool.available && tool.conflictsWithGrammar);
   document.querySelectorAll("#grammar-modes .seg-btn").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.mode === state.grammarMode);
-    btn.disabled = webOn && btn.dataset.mode !== "off";
+    btn.disabled = toolsOn && btn.dataset.mode !== "off";
   });
-  $("grammar-json-wrap").classList.toggle("show", state.grammarMode === "json" && !webOn);
-  $("grammar-ebnf-wrap").classList.toggle("show", state.grammarMode === "ebnf" && !webOn);
+  $("grammar-json-wrap").classList.toggle("show", state.grammarMode === "json" && !toolsOn);
+  $("grammar-ebnf-wrap").classList.toggle("show", state.grammarMode === "ebnf" && !toolsOn);
   $("max-tokens").value = state.maxNewTokens;
   updateWebSearchUI();
+  updateLocalFileToolsUI();
+}
+
+function updateLocalFileToolsUI() {
+  const availability = toolAvailability();
+  const readState = availability.find(tool => tool.id === "read");
+  const grepState = availability.find(tool => tool.id === "grep");
+  const controlsEnabled = !state.busy && !state.loading;
+  const readToggle = $("read-tool-toggle");
+  const grepToggle = $("grep-tool-toggle");
+  if (readToggle) {
+    readToggle.checked = !!readState?.preferred;
+    readToggle.disabled = !controlsEnabled || readState?.reason === "model_unsupported";
+  }
+  if (grepToggle) {
+    grepToggle.checked = !!grepState?.preferred;
+    grepToggle.disabled = !controlsEnabled || grepState?.reason === "model_unsupported";
+  }
+  const status = $("local-file-tools-help-text");
+  if (!status) return;
+  if (!state.attachments.length) {
+    status.hidden = true;
+    return;
+  }
+  status.hidden = false;
+  status.textContent = "Read and grep become available when this conversation has uploaded files.";
+}
+
+async function setLocalFileToolPreference(toolName, enabled) {
+  if (state.busy || state.loading) return;
+  if (toolName !== "read" && toolName !== "grep") return;
+  const referencesWereEnabled = localReferencesEnabled();
+  state.toolPreferences[toolName] = enabled;
+  const session = activeSession();
+  if (session) {
+    session.toolPreferences = { ...state.toolPreferences };
+    await persistSession(session);
+  }
+  if (
+    enabled
+    && state.attachments.length
+    && state.grammarMode !== "off"
+  ) {
+    state.grammarMode = "off";
+    savePrefs();
+    toast("Grammar mode disabled while conversation file tools are active.");
+  }
+  if (!localReferencesEnabled()) state.pendingFileRefs.clear();
+  renderFilesWorkspace();
+  renderPendingFileRefs();
+  hideFileAutocomplete();
+  if (referencesWereEnabled !== localReferencesEnabled()) renderChat();
+  updateGrammarUI();
 }
 
 function updateWebSearchUI() {
   const toggle = $("web-search-toggle");
   if (!toggle) return;
-  toggle.checked = state.webSearchPreferred;
+  const webState = toolAvailability().find(tool => tool.id === "web_search");
+  toggle.checked = !!webState?.preferred;
   const def = activeModelDef();
-  const canUse = !!def?.supportsTools;
-  toggle.disabled = !canUse;
+  const canUse = webState?.reason !== "model_unsupported";
+  toggle.disabled = !canUse || state.busy || state.loading;
   const help = $("web-search-help");
   const tipEl = $("web-search-help-text");
   if (help && tipEl) {
     let tip = "Enable to let the model search the web via Exa MCP when needed.";
     if (!canUse) {
       tip = "This model does not support tool calling.";
-    } else if (state.webSearchPreferred && !state.model) {
+    } else if (state.toolPreferences.web_search && !state.model) {
       tip = `Load ${def.name} to use web search. Queries are sent to Exa MCP.`;
     } else if (webSearchEffective()) {
       tip = "Web search active. Queries are sent to Exa MCP (third-party). Grammar mode is disabled.";
@@ -1906,7 +2500,7 @@ function renderChat({ scrollForce = false, animateLast = false } = {}) {
   for (let i = 0; i < session.messages.length; i++) {
     const msg = session.messages[i];
     if (msg.role === "user") {
-      appendRendered(buildUserMessage(msg.content, i), i);
+      appendRendered(buildUserMessage(msg, i), i);
     } else if (hasAgentMessages) {
       for (const step of agentMessagesToSteps([msg])) {
         appendRendered(buildAgentStepMessage(step), i);
@@ -2314,7 +2908,7 @@ function stopActiveGeneration() {
     activeStreamCtx.streamPhase = "stopping";
     activeStreamCtx.prefillActive = false;
     activeStreamCtx.busy = true;
-    if (agentStepEls.length || webSearchEffective()) {
+    if (agentStepEls.length || agentModeEffective()) {
       publishAgentStreamContext(activeStreamCtx);
     } else {
       publishStreamContext(activeStreamCtx);
@@ -2341,10 +2935,15 @@ async function switchSession(id) {
   const session = state.sessions.find(s => s.id === id);
   if (!session) return;
   state.activeSessionId = id;
+  state.pendingFileRefs.clear();
+  hideFileAutocomplete();
+  await loadAttachmentsForSession(id);
+  syncUIFromSession();
   savePrefs();
   renderSessionList();
+  renderFilesWorkspace();
+  renderPendingFileRefs();
   renderChat();
-  syncUIFromSession();
   focusComposerInput($("user-input"));
   const modelId = resolveModelIdForSession(session, state.selectedModelId);
   if (!session.modelId) await patchSessionFields(session, { modelId });
@@ -2356,12 +2955,13 @@ async function switchSession(id) {
 
 async function runAssistantGeneration(session) {
   state.busy = true;
+  state.runtimeTracesBySession.delete(String(session.id));
   chatScrollEl().classList.add("streaming-scroll");
   state.abort = new AbortController();
   updateComposerState();
   setModelStatus("busy", "Starting…");
 
-  const useAgent = webSearchEffective();
+  const useAgent = agentModeEffective();
   /** @type {ReturnType<typeof initStreamContext>} */
   let streamCtx = initStreamContext();
   activeStreamCtx = streamCtx;
@@ -2382,17 +2982,30 @@ async function runAssistantGeneration(session) {
   let finalMetrics = null;
   let result = null;
   let generationError = null;
+  let turnTools = [];
+  const requestTrace = [];
+  let executionModelId = session.modelId || null;
 
   try {
     const modelDef = loadedModelDef();
+    executionModelId = modelDef?.id || executionModelId;
     const runtime = getRuntimeAdapter(modelDef.runtime);
     if (useAgent) {
-      const webSearchTool = createWebSearchTool(defaultSearchProvider);
-      const baseMessages = buildAgentMessages(session);
+      const availability = toolAvailability({ modelDef });
+      turnTools = createActiveTools({
+        attachments: state.attachments,
+        modelId: modelDef.id,
+        availability,
+        searchProvider: defaultSearchProvider,
+      });
+      const baseMessages = buildAgentMessages(session, [], {
+        attachments: localReferencesEnabled() ? state.attachments : [],
+        modelId: modelDef.id,
+      });
       result = await runAgentTurn({
         model: state.model,
         messages: baseMessages,
-        tools: [webSearchTool],
+        tools: turnTools,
         generateFn: runtime.generateAgent,
         prepareMessages: (messages, activeTools) =>
           applyAgentPolicy(messages, activeTools, {
@@ -2440,6 +3053,7 @@ async function runAssistantGeneration(session) {
             publishAgentStreamContext(streamCtx);
           }
         },
+        onRequestPrepared: request => requestTrace.push(structuredClone(request)),
       });
       raw = result.raw || streamCtx.raw;
       output = result.content || "";
@@ -2464,6 +3078,13 @@ async function runAssistantGeneration(session) {
           messages,
           { enableThinking },
         ),
+      });
+      requestTrace.push({
+        generation: 1,
+        runtime: modelDef.runtime,
+        messages: structuredClone(fittedMessages),
+        tools: [],
+        maxNewTokens: boundedMaxNewTokens,
       });
       runtime.applyChatTemplate?.(state.model, { enableThinking });
       const stream = state.model.generate(fittedMessages, runtime.chatOptions({
@@ -2507,10 +3128,10 @@ async function runAssistantGeneration(session) {
       output = split.output;
       if (looksLikeToolCallSyntax(output || raw)) {
         const cleaned = stripToolCallSyntax(output || raw);
-        toast("Enable Web Search in the composer to run tool calls.");
+        toast("Enable the relevant tools before asking the model to run tool calls.");
         if (cleaned) output = cleaned;
         else {
-          output = "The model tried to run a web search. Turn on Web Search and try again.";
+          output = "The model tried to run a tool that is not currently available.";
         }
       }
     }
@@ -2530,13 +3151,30 @@ async function runAssistantGeneration(session) {
     }
     session.lastExecution = {
       mode: useAgent ? "agent" : "chat",
-      tools: useAgent ? ["web_search"] : [],
+      tools: useAgent ? activeToolNames(turnTools) : [],
       generations: result?.generations ?? 1,
       toolCalls: result?.toolCalls ?? 0,
       aborted: wasAborted,
       error: generationError,
       completedAt: Date.now(),
     };
+    if (requestTrace.length) {
+      state.runtimeTracesBySession.set(String(session.id), {
+        provenance: "exact",
+        capturedAt: Date.now(),
+        modelId: executionModelId,
+        requests: requestTrace,
+        attachments: state.attachments.map(attachment => ({
+          id: attachment.id,
+          virtualPath: attachment.virtualPath,
+          originalName: attachment.originalName,
+          category: attachment.category,
+          mime: attachment.mime,
+          storedBytes: attachment.storedBytes,
+          lineCount: attachment.lineCount,
+        })),
+      });
+    }
     try {
       await persistSession(session);
     } catch (err) {
@@ -2587,7 +3225,16 @@ async function sendMessage() {
   updateComposerState();
   session.systemPrompt = $("system-prompt").value;
   if (!session.modelId) session.modelId = state.selectedModelId;
-  session.messages.push({ role: "user", content: text });
+  const fileRefs = localReferencesEnabled()
+    ? resolveDraftFileRefs({
+      pendingRefs: state.pendingFileRefs,
+      text,
+      attachments: state.attachments,
+    })
+    : [];
+  const userMessage = { role: "user", content: text };
+  if (fileRefs.length) userMessage.fileRefs = fileRefs;
+  session.messages.push(userMessage);
   if (session.messages.length === 1) session.title = firstMessageTitle(text);
   try {
     await persistSession(session);
@@ -2602,6 +3249,9 @@ async function sendMessage() {
 
   input.value = "";
   input.style.height = "auto";
+  state.pendingFileRefs.clear();
+  hideFileAutocomplete();
+  renderPendingFileRefs();
   renderChat({ scrollForce: true, animateLast: true });
 
   await runAssistantGeneration(session);
@@ -2620,6 +3270,7 @@ function initStaticIcons() {
   setIcon($("sidebar-toggle"), "menu");
   setIcon($("chat-title-edit"), "edit");
   setIcon($("send-btn"), "send");
+  setIcon($("attach-files-btn"), "paperclip");
   setIcon($("credits-dialog-close"), "close");
   setIcon($("download-dialog-close"), "close");
   const newBtn = $("new-chat-btn");
@@ -2629,6 +3280,7 @@ function initStaticIcons() {
     versionEl.setAttribute("aria-label", `App version ${APP_VERSION}`);
     versionEl.innerHTML = `<span class="version-label">Version</span><span class="version-num">${APP_VERSION}</span>`;
   }
+  $("file-picker").accept = acceptedFileInputValue();
 }
 
 async function init() {
@@ -2637,6 +3289,7 @@ async function init() {
 
   try {
     state.db = await openDB();
+    await dbCleanupOrphanAttachments(state.db);
     state.sessions = (await dbGetAll(state.db))
       .map(record => normalizeSessionRecord(record, MODELS))
       .filter(Boolean)
@@ -2654,10 +3307,14 @@ async function init() {
   else if (!state.activeSessionId || !state.sessions.find(s => s.id === state.activeSessionId)) {
     state.activeSessionId = state.sessions[0].id;
   }
+  await loadAttachmentsForSession(state.activeSessionId);
+  syncUIFromSession();
+  savePrefs();
 
   renderSessionList();
+  renderFilesWorkspace();
+  renderPendingFileRefs();
   renderChat();
-  syncUIFromSession();
   const bootSession = activeSession();
   if (bootSession && !sessionModelId(bootSession)) {
     await patchSessionFields(bootSession, { modelId: state.selectedModelId });
@@ -2686,8 +3343,10 @@ $("new-chat-btn").addEventListener("click", async () => {
   const inherited = inheritedSessionSettings();
   const session = await createSession();
   if (!session) return;
-  renderChat();
   syncUIFromSession();
+  renderFilesWorkspace();
+  renderPendingFileRefs();
+  renderChat();
   await applyModelSelection(inherited.modelId, { silent: true, persistToSession: false });
   resetLoadedModel();
   focusComposerInput($("user-input"));
@@ -2707,9 +3366,14 @@ $("session-search").addEventListener("input", () => {
 
 document.querySelectorAll("#grammar-modes .seg-btn").forEach(btn => {
   btn.addEventListener("click", () => {
-    if (webSearchEffective() || state.webSearchPreferred) {
+    const preferredTools = toolAvailability({ runtimeReady: false, grammarMode: "off" })
+      .filter(tool => tool.preferred && tool.available && tool.conflictsWithGrammar);
+    const localToolsOn = preferredTools.some(tool => tool.scope === "local_file");
+    if (preferredTools.length) {
       if (btn.dataset.mode !== "off") {
-        toast("Disable web search to use grammar mode.");
+        toast(localToolsOn
+          ? "Disable read and grep to use grammar mode."
+          : "Disable web search to use grammar mode.");
         return;
       }
     }
@@ -2720,19 +3384,27 @@ document.querySelectorAll("#grammar-modes .seg-btn").forEach(btn => {
 });
 
 $("web-search-toggle")?.addEventListener("change", async () => {
-  state.webSearchPreferred = $("web-search-toggle").checked;
-  if (state.webSearchPreferred && state.grammarMode !== "off") {
+  state.toolPreferences.web_search = $("web-search-toggle").checked;
+  if (state.toolPreferences.web_search && state.grammarMode !== "off") {
     state.grammarMode = "off";
     toast("Grammar mode disabled while web search is on.");
   }
   const session = activeSession();
   if (session) {
-    session.webSearchPreferred = state.webSearchPreferred;
+    session.toolPreferences = { ...state.toolPreferences };
     await persistSession(session);
   } else {
     savePrefs();
   }
   updateGrammarUI();
+});
+
+$("read-tool-toggle")?.addEventListener("change", () => {
+  setLocalFileToolPreference("read", $("read-tool-toggle").checked);
+});
+
+$("grep-tool-toggle")?.addEventListener("change", () => {
+  setLocalFileToolPreference("grep", $("grep-tool-toggle").checked);
 });
 
 const debounce = createDebouncer();
@@ -2758,7 +3430,7 @@ $("max-tokens").addEventListener("change", () => {
 
 $("clear-model-cache-btn").addEventListener("click", () => clearModelCache());
 
-for (const id of ["conversations-block", "model-block", "system-block", "settings-block", "storage-block"]) {
+for (const id of ["conversations-block", "files-block", "model-block", "system-block", "settings-block", "storage-block"]) {
   $(id).addEventListener("toggle", savePrefs);
 }
 
@@ -2779,9 +3451,83 @@ $("download-dialog").addEventListener("close", () => {
 
 $("send-btn").addEventListener("click", sendMessage);
 $("stop-btn").addEventListener("click", stopActiveGeneration);
-$("user-input").addEventListener("input", () => autoResizeTextarea($("user-input")));
+$("add-files-btn").addEventListener("click", () => $("file-picker").click());
+$("attach-files-btn").addEventListener("click", () => $("file-picker").click());
+$("file-picker").addEventListener("change", async () => {
+  await addSelectedFiles($("file-picker").files);
+  $("file-picker").value = "";
+});
+
+function bindFileDropTarget(target, { openOnDrag = false } = {}) {
+  let dragDepth = 0;
+  target.addEventListener("dragenter", event => {
+    if (!Array.from(event.dataTransfer?.types || []).includes("Files")) return;
+    event.preventDefault();
+    dragDepth++;
+    if (openOnDrag && "open" in target) target.open = true;
+    event.dataTransfer.dropEffect = "copy";
+    target.classList.add("file-drag-over");
+  });
+  target.addEventListener("dragover", event => {
+    if (!Array.from(event.dataTransfer?.types || []).includes("Files")) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  });
+  target.addEventListener("dragleave", () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) target.classList.remove("file-drag-over");
+  });
+  target.addEventListener("drop", event => {
+    if (!Array.from(event.dataTransfer?.types || []).includes("Files")) return;
+    event.preventDefault();
+    dragDepth = 0;
+    target.classList.remove("file-drag-over");
+    addSelectedFiles(event.dataTransfer?.files);
+  });
+}
+
+bindFileDropTarget($("composer-shell"));
+bindFileDropTarget($("files-block"), { openOnDrag: true });
+
+$("user-input").addEventListener("input", () => {
+  autoResizeTextarea($("user-input"));
+  const reconciledRefs = new Set(reconcileSelectedFileRefs(
+    state.pendingFileRefs,
+    $("user-input").value,
+    state.attachments,
+  ));
+  const refsChanged = reconciledRefs.size !== state.pendingFileRefs.size;
+  state.pendingFileRefs = reconciledRefs;
+  if (refsChanged) renderPendingFileRefs();
+  state.fileAutocompleteIndex = 0;
+  updateFileAutocomplete();
+});
+$("user-input").addEventListener("click", updateFileAutocomplete);
 $("user-input").addEventListener("keydown", e => {
+  if ($("file-autocomplete").classList.contains("show")) {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const direction = e.key === "ArrowDown" ? 1 : -1;
+      const count = state.fileAutocompleteMatches.length;
+      state.fileAutocompleteIndex = (state.fileAutocompleteIndex + direction + count) % count;
+      updateFileAutocomplete();
+      return;
+    }
+    if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      selectFileAutocomplete();
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      hideFileAutocomplete();
+      return;
+    }
+  }
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+document.addEventListener("click", event => {
+  if (!event.target.closest("#composer-wrap")) hideFileAutocomplete();
 });
 
 init().catch(err => {

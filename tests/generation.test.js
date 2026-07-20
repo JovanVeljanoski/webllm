@@ -30,10 +30,31 @@ describe("generationErrorFallback", () => {
     expect(result.toast).toBe("Generation failed: boom");
   });
 
-  it("keeps partial output on real errors without a toast", () => {
+  it("explains context overflows with token counts and recovery options", () => {
+    const result = generationErrorFallback(new RangeError(
+      "The current turn requires 140000 input tokens, but this model allows "
+      + "130752 after reserving output space.",
+    ));
+    expect(result.raw).toContain("140000 input tokens; 130752 available");
+    expect(result.raw).toContain("read a smaller range");
+    expect(result.toast).toContain("too large");
+  });
+
+  it("turns WebGPU variant failures into an actionable prompt-shape error", () => {
+    const result = generationErrorFallback(new Error(
+      "No supported WebGPU variant for com.xenova.gemma4.DenseGemv; "
+      + "rejected scalar: when guard resolved to false",
+    ));
+    expect(result.raw).toContain("no compatible kernel for this input shape");
+    expect(result.raw).toContain("not necessarily a context-window overflow");
+    expect(result.raw).toContain("50–100 lines");
+    expect(result.toast).toContain("smaller file range");
+  });
+
+  it("keeps partial output and surfaces real failures in a toast", () => {
     const result = generationErrorFallback({ message: "boom" }, { raw: "partial" });
     expect(result.raw).toBe("partial");
     expect(result.aborted).toBe(false);
-    expect(result.toast).toBeNull();
+    expect(result.toast).toBe("Generation failed: boom");
   });
 });

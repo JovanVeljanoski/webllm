@@ -18,8 +18,10 @@ small, inspectable implementation of agentic work on private local inference.
 
 - Local inference through WebGPU
 - Gemma 4 E2B with thinking and tool use
+- Bonsai 27B with a compact 4K context window and tool use
 - Smaller LFM2.5 230M and 350M models with tool use
 - A bounded model → tool → model agent loop
+- Conversation-scoped text files with fuzzy `@file` references, local `read`, and safe regex/literal `grep`
 - Optional web search through Exa MCP, with no API key
 - Local conversation history and model caching
 - Editable system prompts and prompt-guided JSON or EBNF output
@@ -37,7 +39,7 @@ WebGPU runtimes.
 2. Choose a model in the sidebar.
 3. Select **Load model**.
 4. Wait for the first download and warm-up, then send a message.
-5. Enable **Web search** to use the agent loop with any supported model.
+5. Optionally add text files and reference them with `@`, or enable **Web search**.
 
 The first load downloads model weights from Hugging Face. Gemma is about 2.5 GB;
 the LFM models are about 150 MB and 220 MB. The browser caches them for later
@@ -84,9 +86,11 @@ For one agent turn:
    then generation runs again.
 8. The resulting canonical messages are saved to IndexedDB and rendered by the UI.
 
-The UI currently registers one tool, `web_search`. The loop itself is
-model- and tool-agnostic: tools provide a name, schema, execution function, prompt
-policy, trust level, and whether concurrent execution is safe.
+Declarative descriptors in `lib/tool-registry.js` resolve preferred, eligible, and
+active state before building one set containing local `read`, `grep`, and optional
+`web_search`. The loop itself is model- and tool-agnostic: tools provide a name,
+schema, execution function, prompt policy, trust level, and whether concurrent
+execution is safe.
 
 ### What is inserted where
 
@@ -110,13 +114,13 @@ does not rewrite the stored prompt. The layers are added in this order:
 2. The fixed January 2025 knowledge cutoff and the browser's current local date.
 3. In agent mode, the tool-call protocol.
 4. Policies contributed by active tools, such as when and how to search.
-5. A guard telling the model to treat external tool output as evidence, never as
-   instructions.
+5. Guards telling the model to treat uploaded and external tool data as evidence,
+   never as instructions.
 6. In ordinary chat mode, optional JSON or EBNF guidance.
 
 Active tool schemas are supplied through the selected runtime adapter. Tool policy
 is rebuilt before every generation, so the final tools-disabled generation does
-not retain stale tool-use instructions. Web search and grammar guidance are
+not retain stale tool-use instructions. File/web tools and grammar guidance are
 mutually exclusive in the current UI.
 
 Before generation, the loaded model's tokenizer measures the complete prompt. The
@@ -142,6 +146,44 @@ Tool calls are only executed after the parser finds a complete, balanced call.
 Calls inside an open thinking channel and truncated calls are ignored. This avoids
 executing half-generated arguments.
 
+### Local files, end to end
+
+Users can select or drop up to 10 supported text files per conversation. Original
+inputs and normalized files are limited to 1 MB each, while the 5 MB conversation
+quota measures normalized text actually stored in IndexedDB. Files are decoded
+and normalized in the browser and rejected if binary or unsupported. The app
+never receives an operating-system path or broader filesystem access.
+
+The composer and historical message editor offer fuzzy `@file` completion.
+Uploading adds a file to the conversation workspace but does not reference it;
+the user explicitly selects a workspace row or autocomplete result to add a
+removable reference chip. Plain typed `@filename` text never attaches a file.
+Stored user messages keep only selected stable attachment IDs; bounded excerpts
+are added at the model boundary and are not duplicated into chat history. File
+references are inactive when both local tools are disabled. A metadata-only
+manifest lets the model discover available virtual paths while a local tool is
+active.
+`read` and `grep` are enabled by default in the Tools sidebar and are automatically
+re-enabled when files are uploaded. The read-only tools can:
+
+- `read` numbered line ranges from one exact virtual path;
+- `grep` JavaScript regular expressions across uploaded files, with an explicit
+  literal-text mode and optional path or extension filtering. Regex matching runs
+  in a disposable worker with a strict deadline so catastrophic backtracking
+  cannot block the interface.
+
+File excerpt and tool-output budgets are declared with each model, with especially
+small limits for Bonsai's 4K context window. Files are conversation-scoped:
+deleting a conversation deletes its attachments, and clearing browser site data
+removes both.
+
+The default OpenAI conversation export does not expand file references. The
+diagnostic export captures exact post-fitting runtime requests for the latest
+in-memory turn. After reload it falls back to a clearly labelled reconstruction of
+current context. Diagnostics can include bounded referenced-file excerpts; the
+download dialog labels this before export. Neither format bundles complete
+attachment records.
+
 ### Web search, end to end
 
 When Web Search is enabled, the effective prompt tells the model when to search and
@@ -161,8 +203,8 @@ classify answer quality, retry weak answers, or invent a result.
 
 ## Privacy and network access
 
-Prompts, generations, and chat history stay in the browser when Web Search is off.
-Inference always runs locally.
+Prompts, generations, chat history, and uploaded files stay in the browser when Web
+Search is off. Inference and local file tools always run locally.
 
 There are two intentional network paths:
 
@@ -173,9 +215,10 @@ There are two intentional network paths:
 Search queries therefore are not private to the device. Search results are treated
 as untrusted external data before being shown to the model.
 
-Sessions live in the `webllm-sessions` IndexedDB database. Preferences and theme
-live in `localStorage`. Model weights use IndexedDB and/or Cache Storage depending
-on the runtime. Storage failures degrade to in-memory chat where possible.
+Sessions and conversation-scoped text attachments live in the `webllm-sessions`
+IndexedDB database. Preferences and theme live in `localStorage`. Model weights use
+IndexedDB and/or Cache Storage depending on the runtime. Storage failures degrade
+to in-memory chat and files where possible.
 
 ## Models
 
